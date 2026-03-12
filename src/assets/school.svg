@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240" role="img" aria-labelledby="schoolTitle schoolDesc">
+  <title id="schoolTitle">School Building</title>
+  <desc id="schoolDesc">Simple illustration of a school building with windows and a flag.</desc>
+  <rect width="320" height="240" fill="#eef2ff"/>
+  <rect x="60" y="70" width="200" height="130" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="3"/>
+  <rect x="145" y="145" width="30" height="55" fill="#93c5fd"/>
+  <rect x="80" y="95" width="26" height="22" fill="#dbeafe"/>
+  <rect x="118" y="95" width="26" height="22" fill="#dbeafe"/>
+  <rect x="176" y="95" width="26" height="22" fill="#dbeafe"/>
+  <rect x="214" y="95" width="26" height="22" fill="#dbeafe"/>
+  <rect x="80" y="125" width="26" height="22" fill="#dbeafe"/>
+  <rect x="118" y="125" width="26" height="22" fill="#dbeafe"/>
+  <rect x="176" y="125" width="26" height="22" fill="#dbeafe"/>
+  <rect x="214" y="125" width="26" height="22" fill="#dbeafe"/>
+  <polygon points="160,36 38,76 282,76" fill="#2563eb"/>
+  <rect x="158" y="26" width="4" height="34" fill="#475569"/>
+  <path d="M162 28 C175 30, 175 42, 162 44 Z" fill="#ef4444"/>
+  <rect x="20" y="200" width="280" height="12" fill="#94a3b8"/>
+</svg>
