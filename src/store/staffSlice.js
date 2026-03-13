@@ -261,6 +261,65 @@ export const fetchStaffDesignations = createAsyncThunk(
   },
 )
 
+export const fetchDesignationsBySchool = createAsyncThunk(
+  'staff/fetchDesignationsBySchool',
+  async ({ access_token, school_id }, { rejectWithValue }) => {
+    try {
+      const query = new URLSearchParams()
+      if (school_id !== undefined && school_id !== null && String(school_id).trim()) {
+        query.set('school_id', String(school_id))
+      }
+
+      const response = await fetch(
+        `${API_BASE_URL}/designations${query.toString() ? `?${query.toString()}` : ''}`,
+        {
+          method: 'GET',
+          headers: {
+            accept: 'application/json',
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer ' + access_token,
+          },
+        },
+      )
+
+      if (!response.ok) {
+        return rejectWithValue(await getErrorMessage(response, 'Designation fetch failed'))
+      }
+
+      const data = await response.json().catch(() => ({}))
+      return data
+    } catch {
+      return rejectWithValue('Unable to fetch designations. Please try again.')
+    }
+  },
+)
+
+export const createDepartmentWithDesignations = createAsyncThunk(
+  'staff/createDepartmentWithDesignations',
+  async ({ access_token, payload }, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/departments`, {
+        method: 'POST',
+        headers: {
+          accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + access_token,
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        return rejectWithValue(await getErrorMessage(response, 'Department creation failed'))
+      }
+
+      const data = await response.json().catch(() => ({}))
+      return data
+    } catch {
+      return rejectWithValue('Unable to create department. Please try again.')
+    }
+  },
+)
+
 export const fetchCreateStaffAttendance = createAsyncThunk(
   'staff/fetchCreateStaffAttendance',
   async ({ access_token, date, records }, { rejectWithValue }) => {
@@ -339,6 +398,28 @@ const staffSlice = createSlice({
       .addCase(fetchStaffDesignations.rejected, (state, action) => {
         state.status = 'failed'
         state.error = action.payload || action.error.message || 'Staff designations request failed.'
+      })
+      .addCase(fetchDesignationsBySchool.pending, (state) => {
+        state.status = 'loading'
+        state.error = null
+      })
+      .addCase(fetchDesignationsBySchool.fulfilled, (state) => {
+        state.status = 'succeeded'
+      })
+      .addCase(fetchDesignationsBySchool.rejected, (state, action) => {
+        state.status = 'failed'
+        state.error = action.payload || action.error.message || 'Designation request failed.'
+      })
+      .addCase(createDepartmentWithDesignations.pending, (state) => {
+        state.status = 'loading'
+        state.error = null
+      })
+      .addCase(createDepartmentWithDesignations.fulfilled, (state) => {
+        state.status = 'succeeded'
+      })
+      .addCase(createDepartmentWithDesignations.rejected, (state, action) => {
+        state.status = 'failed'
+        state.error = action.payload || action.error.message || 'Department creation request failed.'
       })
       .addCase(fetchCreateStaffAttendance.pending, (state) => {
         state.status = 'loading'

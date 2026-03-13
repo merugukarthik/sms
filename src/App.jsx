@@ -23,6 +23,7 @@ import StaffPage from './pages/StaffPage'
 import StaffAttendancePage from './pages/StaffAttendancePage'
 import StudentPage from './pages/StudentPage'
 import StudentAttendancePage from './pages/StudentAttendancePage'
+import DesignationPage from './pages/DesignationPage'
 import TransportRoutesPage from './pages/TransportRoutesPage'
 import TransportVehiclesPage from './pages/TransportVehiclesPage'
 import TransportAttendancePage from './pages/TransportAttendancePage'
@@ -140,12 +141,14 @@ function App() {
         <Route path="staff/list-staff" element={<StaffPage />} />
         <Route path="staff/attendance" element={<StaffAttendancePage />} />
         <Route path="staff/list-attendance" element={<StaffAttendancePage />} />
+        <Route path="designation" element={<DesignationPage />} />
+        <Route path="designations" element={<DesignationPage />} />
         <Route path="students" element={<StudentPage />} />
         <Route path="students/view-details" element={<StudentPage />} />
         <Route path="students/list-students" element={<StudentPage />} />
         <Route path="students/attendance" element={<StudentAttendancePage />} />
         <Route path="students/list-attendance" element={<StudentAttendancePage />} />
-        <Route path="fees" element={<FeesPage />} />
+        <Route path="finance" element={<FeesPage />} />
         <Route path="fees/structure" element={<FeesPage />} />
         <Route path="users" element={<UserManagementPage />} />
         <Route path="users/:featureName" element={<UserManagementPage />} />

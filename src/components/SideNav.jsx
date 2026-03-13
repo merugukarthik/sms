@@ -12,6 +12,7 @@ const MODULE_ROUTE_MAP = {
   teacher_mgmt: '/app/staff',
   class_mgmt: '/app/academics',
   reports: '/app/reports',
+  designation_mgmt: '/app/designations',
 }
 
 const getModuleIcon = (moduleItem) => {
@@ -65,6 +66,10 @@ const getModulePath = (moduleItem) => {
   const normalizedPath = toSlug(trimmedPath)
   if (normalizedPath === 'dashboard') {
     return '/app/home'
+  }
+
+  if (normalizedPath === 'designation' || normalizedPath === 'designations') {
+    return '/app/designations'
   }
 
   return `/app/${normalizedPath}`

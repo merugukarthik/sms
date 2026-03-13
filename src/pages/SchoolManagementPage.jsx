@@ -163,7 +163,7 @@ function SchoolManagementPage() {
     if (!String(values.email || '').trim()) nextErrors.email = 'Email is required.'
     if (!String(values.userDetails?.username || '').trim()) nextErrors.username = 'Username is required.'
     if (!String(values.userDetails?.password || '').trim()) nextErrors.password = 'Password is required.'
-    if (!String(values.userDetails?.role_id || '').trim()) nextErrors.role_id = 'Role is required.'
+    // if (!String(values.userDetails?.role_id || '').trim()) nextErrors.role_id = 'Role is required.'
     const hasPermissions = values.permissions.some((item) => item.can_create || item.can_read || item.can_update || item.can_delete)
     if (!hasPermissions) nextErrors.permissions = 'Select at least one permission.'
 
@@ -254,7 +254,7 @@ function SchoolManagementPage() {
           userDetails: {
             username: formData.userDetails.username.trim(),
             password: formData.userDetails.password,
-            role_id: formData.userDetails.role_id,
+            role_id: "Admin",
           },
           permissions: formData.permissions
             .filter((item) => item.can_create || item.can_read || item.can_update || item.can_delete)
@@ -454,7 +454,7 @@ function SchoolManagementPage() {
               {formErrors.password && <p className="role-management-field-error">{formErrors.password}</p>}
             </div>
 
-            <div className="role-management-field">
+            {/* <div className="role-management-field">
               <label htmlFor="school-role-id" className="role-management-label">Role</label>
               <select
                 id="school-role-id"
@@ -471,7 +471,7 @@ function SchoolManagementPage() {
                 ))}
               </select>
               {formErrors.role_id && <p className="role-management-field-error">{formErrors.role_id}</p>}
-            </div>
+            </div> */}
           </div>
 
           <div className="organization-form-section organization-form-section-full">

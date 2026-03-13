@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import CustomTable from '../components/CustomTable'
-import { fetchCreateFeeStructure, fetchFeeStructure } from '../store/feesSlice'
+import {
+  createRazorpayOrder,
+  fetchCreateFeeStructure,
+  fetchFeeStructure,
+  verifyRazorpayPayment,
+} from '../store/feesSlice'
 
 const normalizeList = (resp) => (
   Array.isArray(resp?.items)
@@ -21,12 +26,63 @@ const toHeader = (key) => (
     .join(' ')
 )
 
+const RAZORPAY_CHECKOUT_URL = 'https://checkout.razorpay.com/v1/checkout.js'
+
+const getCurrentUser = (authUser) => authUser?.user ?? authUser
+const getSchoolId = (authUser) => {
+  const currentUser = getCurrentUser(authUser)
+
+  return (
+    currentUser?.school_id
+    ?? authUser?.school_id
+    ?? currentUser?.school?.id
+    ?? authUser?.school?.id
+    ?? 1
+  )
+}
+
+const resolveRazorpayOrder = (response) => (
+  response?.order
+  ?? response?.data
+  ?? response
+)
+
+const loadRazorpayScript = () => new Promise((resolve, reject) => {
+  if (typeof window === 'undefined') {
+    reject(new Error('Window is not available.'))
+    return
+  }
+
+  if (window.Razorpay) {
+    resolve(window.Razorpay)
+    return
+  }
+
+  const existingScript = document.querySelector(`script[src="${RAZORPAY_CHECKOUT_URL}"]`)
+  if (existingScript) {
+    existingScript.addEventListener('load', () => resolve(window.Razorpay), { once: true })
+    existingScript.addEventListener('error', () => reject(new Error('Failed to load Razorpay checkout.')), { once: true })
+    return
+  }
+
+  const script = document.createElement('script')
+  script.src = RAZORPAY_CHECKOUT_URL
+  script.async = true
+  script.onload = () => resolve(window.Razorpay)
+  script.onerror = () => reject(new Error('Failed to load Razorpay checkout.'))
+  document.body.appendChild(script)
+})
+
 function FeesPage() {
   const dispatch = useDispatch()
   const { user } = useSelector((state) => state.auth)
+  const currentUser = getCurrentUser(user)
+  const schoolId = getSchoolId(user)
+  const razorpayKeyId = 'rzp_test_SMi9MR5TYESMRb'
   const [feeData, setFeeData] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isPaying, setIsPaying] = useState(false)
   const [isCreatePopupOpen, setIsCreatePopupOpen] = useState(false)
   const [error, setError] = useState('')
   const [formError, setFormError] = useState({})
@@ -48,7 +104,12 @@ function FeesPage() {
     setIsLoading(true)
     setError('')
     try {
-      const resp = await dispatch(fetchFeeStructure({ access_token: user.access_token })).unwrap()
+      const resp = await dispatch(fetchFeeStructure({
+        access_token: user.access_token,
+        school_id: schoolId,
+        class_id: 1,
+        fee_type_id: 1,
+      })).unwrap()
       setFeeData(normalizeList(resp))
     } catch (err) {
       setError(typeof err === 'string' ? err : 'Failed to fetch fee structure.')
@@ -61,12 +122,12 @@ function FeesPage() {
   useEffect(() => {
     refreshFeeStructure()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dispatch, user?.access_token])
+  }, [dispatch, user?.access_token, schoolId])
 
   const validateForm = (values) => {
     const nextErrors = {}
     if (!values.name.trim()) nextErrors.name = 'Name is required.'
-    if (!values.fee_type.trim()) nextErrors.fee_type = 'Fee type is required.'
+    if (!values.fee_type) nextErrors.fee_type = 'Fee type is required.'
     if (Number(values.class_id) < 0) nextErrors.class_id = 'Class id cannot be negative.'
     if (Number(values.section_id) < 0) nextErrors.section_id = 'Section id cannot be negative.'
     if (Number(values.amount) < 0) nextErrors.amount = 'Amount cannot be negative.'
@@ -96,7 +157,7 @@ function FeesPage() {
     setFormError({})
     setFormData({
       name: '',
-      fee_type: 'school',
+      fee_type: 1,
       class_id: 0,
       section_id: 0,
       amount: 0,
@@ -139,6 +200,146 @@ function FeesPage() {
     }
   }
 
+  const handlePayExampleAmount = async () => {
+    if (!user?.access_token) {
+      setError('Missing access token. Please login again.')
+      return
+    }
+
+    if (!razorpayKeyId) {
+      setError('Missing Razorpay key. Add VITE_RAZORPAY_KEY_ID in your environment.')
+      return
+    }
+
+    setIsPaying(true)
+    setError('')
+    setMessage('')
+
+    const options = {
+      key: "rzp_test_SMi9MR5TYESMRb",
+      amount: 50000, // amount in paise (₹500)
+      currency: "INR",
+      name: "My React App",
+      description: "Test Payment",
+
+      prefill: {
+        name: "Karthik",
+        email: "test@gmail.com",
+        contact: "9999999999"
+      },
+
+      handler: function (response) {
+        alert("Payment Successful!");
+        console.log("Payment response:", response);
+        console.log("Payment ID:", response.razorpay_payment_id);
+        console.log("Order ID:", response.razorpay_order_id);
+        console.log("Signature:", response.razorpay_signature);
+      },
+
+
+
+      notes: {
+        address: "React Razorpay Demo"
+      },
+
+      theme: {
+        color: "#3399cc"
+      }
+    };
+
+    const paymentObject = new window.Razorpay(options);
+    paymentObject.open();
+
+    // try {
+    //   const razorpayOrderResponse = await dispatch(
+    //     createRazorpayOrder({
+    //       access_token: user.access_token,
+    //       key: "rzp_test_SMi9MR5TYESMRb",
+    //       amount: 500,
+    //       currency: 'INR',
+    //       receipt: `fees-demo-${Date.now()}`,
+    //     }),
+    //   ).unwrap()
+
+    //   const order = resolveRazorpayOrder(razorpayOrderResponse)
+    //   const Razorpay = await loadRazorpayScript()
+    //   const razorpayOrderId = order?.razorpay_order_id || order?.id
+    //   const paymentAmountPaise = Number(order?.amount_paise ?? order?.amount ?? 50000)
+    //   const paymentAmountRupees = Number(order?.amount_rupees ?? paymentAmountPaise / 100)
+    //   const paymentKeyId = order?.key_id || razorpayKeyId
+
+    //   if (!Razorpay) {
+    //     throw new Error('Razorpay checkout is unavailable.')
+    //   }
+
+    //   if (!razorpayOrderId) {
+    //     throw new Error('Order id was not returned by the payment API.')
+    //   }
+
+    //   if (!paymentKeyId) {
+    //     throw new Error('Razorpay key id was not returned by the payment API.')
+    //   }
+
+    //   const paymentObject = new Razorpay({
+    //     key: paymentKeyId,
+    //     amount: paymentAmountPaise,
+    //     currency: order?.currency || 'INR',
+    //     name: 'SMS Portal',
+    //     description: order?.receipt || 'Finance example payment',
+    //     order_id: razorpayOrderId,
+    //     prefill: {
+    //       name: order?.student_name || [currentUser?.first_name, currentUser?.last_name].filter(Boolean).join(' ').trim() || currentUser?.name || '',
+    //       email: currentUser?.email || '',
+    //       contact: currentUser?.phone || currentUser?.mobile || '',
+    //     },
+    //     notes: {
+    //       module: 'finance',
+    //       example_amount: String(paymentAmountRupees),
+    //       payment_order_id: String(order?.payment_order_id ?? ''),
+    //       school_name: order?.school_name || '',
+    //     },
+    //     theme: {
+    //       color: '#1f6feb',
+    //     },
+    //     handler: async (response) => {
+    //       try {
+    //         await dispatch(
+    //           verifyRazorpayPayment({
+    //             access_token: user.access_token,
+    //             payload: {
+    //               payment_order_id: order?.payment_order_id,
+    //               razorpay_order_id: response.razorpay_order_id,
+    //               razorpay_payment_id: response.razorpay_payment_id,
+    //               razorpay_signature: response.razorpay_signature,
+    //             },
+    //           }),
+    //         ).unwrap()
+
+    //         setMessage(`Payment of Rs. ${paymentAmountRupees} completed and verified successfully.`)
+    //       } catch (err) {
+    //         setError(typeof err === 'string' ? err : 'Payment completed, but verification failed.')
+    //       }
+    //     },
+    //     modal: {
+    //       ondismiss: () => {
+    //         setMessage('Payment popup closed.')
+    //       },
+    //     },
+    //   })
+
+    //   paymentObject.on('payment.failed', (response) => {
+    //     const failureReason = response?.error?.description || response?.error?.reason || 'Payment failed.'
+    //     setError(failureReason)
+    //   })
+
+    //   paymentObject.open()
+    // } catch (err) {
+    //   setError(typeof err === 'string' ? err : err?.message || 'Unable to start payment.')
+    // } finally {
+    //   setIsPaying(false)
+    // }
+  }
+
   const columns = useMemo(() => {
     const sample = feeData[0]
     if (!sample || typeof sample !== 'object') return []
@@ -154,13 +355,23 @@ function FeesPage() {
         <div className="role-management-head">
           <div className="role-management-head-row">
             <h2 className="role-management-title">Fee Structure</h2>
-            <button
-              type="button"
-              className="role-management-open-create-btn"
-              onClick={openCreatePopup}
-            >
-              Create Fee
-            </button>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="role-management-open-create-btn"
+                onClick={handlePayExampleAmount}
+                disabled={isPaying}
+              >
+                {isPaying ? 'Opening Razorpay...' : 'Pay 500'}
+              </button>
+              <button
+                type="button"
+                className="role-management-open-create-btn"
+                onClick={openCreatePopup}
+              >
+                Create Fee
+              </button>
+            </div>
           </div>
         </div>
 
@@ -197,7 +408,7 @@ function FeesPage() {
 
               <div className="role-management-field">
                 <label htmlFor="fee-fee_type" className="role-management-label">Fee Type</label>
-                <input id="fee-fee_type" name="fee_type" type="text" className="role-management-input" value={formData.fee_type} onChange={handleInputChange} />
+                <input id="fee-fee_type" name="fee_type" type="number" className="role-management-input" value={formData.fee_type} onChange={handleInputChange} />
                 {formError.fee_type && <p className="role-management-field-error">{formError.fee_type}</p>}
               </div>
 

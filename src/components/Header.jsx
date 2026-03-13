@@ -99,7 +99,7 @@ function Header({ onLogout }) {
             )}
           </div>
 
-          <p>{auth?.username}</p>
+          <p>{auth?.full_name}</p>
 
           <div className="profile-menu">
             <button
