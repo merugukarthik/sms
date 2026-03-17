@@ -221,6 +221,7 @@ function FeesPage() {
       currency: "INR",
       name: "My React App",
       description: "Test Payment",
+      //order_id:'order_SQeOLrzXkiuPtK',
 
       prefill: {
         name: "Karthik",
@@ -230,6 +231,7 @@ function FeesPage() {
 
       handler: function (response) {
         alert("Payment Successful!");
+        setIsPaying(false)
         console.log("Payment response:", response);
         console.log("Payment ID:", response.razorpay_payment_id);
         console.log("Order ID:", response.razorpay_order_id);

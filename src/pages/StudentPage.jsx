@@ -10,6 +10,7 @@ function StudentPage() {
   const dispatch = useDispatch()
   const navigate = useNavigate()
   const { user } = useSelector((state) => state.auth)
+  console.log('school id:- ', user.user.school_id)
 
   const [studentsData, setStudentsData] = useState([])
   const [studentsMeta, setStudentsMeta] = useState({
@@ -35,9 +36,11 @@ function StudentPage() {
     parent_name: '',
     parent_phone: '',
     parent_email: '',
+    class_id: 0,
     section_id: 0,
     academic_year_id: 0,
     admission_date: '',
+    admission_no:''
   })
 
   const refreshStudents = async () => {
@@ -100,10 +103,12 @@ function StudentPage() {
     if (!values.parent_phone.trim()) nextErrors.parent_phone = 'Parent phone is required.'
     if (values.parent_phone && !/^\d{1,10}$/.test(values.parent_phone)) nextErrors.parent_phone = 'Parent phone number must be up to 10 digits.'
     if (!values.parent_email.trim()) nextErrors.parent_email = 'Parent email is required.'
-    if (!values.section_id && values.section_id !== 0) nextErrors.section_id = 'Section id is required.'
+      if (!values.class_id && values.class_id !== 0) nextErrors.section_id = 'Section id is required.'
+    if (!values.section_id && values.section_id !== 0) nextErrors.class_id = 'Class id is required.'
     if (!values.academic_year_id && values.academic_year_id !== 0) {
       nextErrors.academic_year_id = 'Academic year id is required.'
     }
+     if (!values.admission_no) nextErrors.admission_no = 'Admission number is required.'
     if (!values.admission_date) nextErrors.admission_date = 'Admission date is required.'
     return nextErrors
   }
@@ -130,6 +135,7 @@ function StudentPage() {
       section_id: 0,
       academic_year_id: 0,
       admission_date: '',
+      admission_no:''
     })
     setFormError({})
   }
@@ -167,6 +173,7 @@ function StudentPage() {
       await dispatch(
         fetchCreateStudent({
           ...formData,
+          school_id: user.user.school_id,
           access_token: user.access_token,
         }),
       ).unwrap()
@@ -192,7 +199,7 @@ function StudentPage() {
 
   const studentColumns = [
     { key: 'id', header: 'Student Id' },
-    { key: 'admission_number', header: 'Admission No' },
+    { key: 'admission_no', header: 'Admission No' },
     {
       key: 'full_name',
       header: 'Name',
@@ -411,6 +418,18 @@ function StudentPage() {
                 />
                 {formError.parent_email && <p className="role-management-field-error">{formError.parent_email}</p>}
               </div>
+              <div className="role-management-field">
+                <label htmlFor="student-class_id" className="role-management-label">Class Id</label>
+                <input
+                  id="student-class_id"
+                  name="class_id"
+                  type="number"
+                  className="role-management-input"
+                  value={formData.class_id}
+                  onChange={handleInputChange}
+                />
+                {formError.class_id && <p className="role-management-field-error">{formError.class_id}</p>}
+              </div>
 
               <div className="role-management-field">
                 <label htmlFor="student-section_id" className="role-management-label">Section Id</label>
@@ -449,6 +468,18 @@ function StudentPage() {
                   onChange={handleInputChange}
                 />
                 {formError.admission_date && <p className="role-management-field-error">{formError.admission_date}</p>}
+              </div>
+
+               <div className="role-management-field">
+                <label htmlFor="student-admission_number" className="role-management-label">Admission Number</label>
+                <input
+                  id="student-admission_number"
+                  name="admission_no"
+                  className="role-management-input"
+                  value={formData.admission_no}
+                  onChange={handleInputChange}
+                />
+                {formError.admission_no && <p className="role-management-field-error">{formError.admission_no}</p>}
               </div>
 
               <div className="role-management-form-actions" style={{ gridColumn: '1 / -1' }}>

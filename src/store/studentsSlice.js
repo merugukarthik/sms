@@ -58,10 +58,13 @@ export const fetchCreateStudent = createAsyncThunk(
     parent_name,
     parent_phone,
     parent_email,
+    class_id,
     section_id,
     academic_year_id,
     admission_date,
+    admission_no,
     access_token,
+    school_id
   }, { rejectWithValue }) => {
     try {
       const response = await fetch(`${API_BASE_URL}/students`, {
@@ -82,12 +85,15 @@ export const fetchCreateStudent = createAsyncThunk(
           parent_name,
           parent_phone,
           parent_email,
+          class_id,
           section_id,
           academic_year_id,
           admission_date,
+          school_id,
+          admission_no
         }),
       })
-
+      console.log('student creating resp:- ', response)
       if (!response.ok) {
         return rejectWithValue(await getErrorMessage(response, 'Student creation failed'))
       }

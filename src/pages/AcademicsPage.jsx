@@ -35,6 +35,42 @@ const TAB_ENTITY_LABELS = {
   [TAB_KEYS.SECTIONS]: 'Section',
 }
 
+const DEFAULT_SUBJECT_OPTIONS = [
+  { value: 'mathematics', label: 'Mathematics' },
+  { value: 'science', label: 'Science' },
+  { value: 'english', label: 'English' },
+  { value: 'social-studies', label: 'Social Studies' },
+  { value: 'computer-science', label: 'Computer Science' },
+]
+const DEFAULT_SECTION_OPTIONS = [
+  { value: 'Section_a', label: 'Section A' },
+  { value: 'Section_b', label: 'Section B' },
+  { value: 'Section_c', label: 'Section C' },
+  { value: 'Section_d', label: 'Section D' },
+  
+]
+
+
+const DEFAULT_STAFF_OPTIONS = [
+  { value: 'teacher-1', label: 'Class Teacher' },
+  { value: 'teacher-2', label: 'Subject Teacher' },
+  { value: 'teacher-3', label: 'Assistant Teacher' },
+]
+
+const DEFAULT_STAFF_NAME_OPTIONS = [
+  { value: 'priya-sharma', label: 'Priya Sharma' },
+  { value: 'arjun-reddy', label: 'Arjun Reddy' },
+  { value: 'neha-verma', label: 'Neha Verma' },
+  { value: 'rahul-kumar', label: 'Rahul Kumar' },
+]
+
+const createEmptyClassAssignmentRow = () => ({
+  id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  subject: '',
+  staff_category: '',
+  staff_name: '',
+})
+
 const toSlug = (value) => {
   if (typeof value !== 'string') return ''
   return value
@@ -112,6 +148,13 @@ const getInitialFormData = (tab) => {
     }
   }
 
+  if (tab === TAB_KEYS.CLASSES) {
+    return {
+      name: '',
+      section_id: '',
+    }
+  }
+
   return {
     name: '',
   }
@@ -159,6 +202,7 @@ function AcademicsPage() {
   const [message, setMessage] = useState('')
   const [formData, setFormData] = useState(getInitialFormData(TAB_KEYS.ACADEMIC_YEARS))
   const [editFormData, setEditFormData] = useState(getInitialFormData(TAB_KEYS.ACADEMIC_YEARS))
+  const [classAssignmentRows, setClassAssignmentRows] = useState([createEmptyClassAssignmentRow()])
   const currentCalendarYear = new Date().getFullYear()
   const currentAcademicYearValue = formatAcademicYear(currentCalendarYear)
   const selectedAcademicStartYear = parseAcademicYearStart(formData.academic_year)
@@ -232,6 +276,7 @@ function AcademicsPage() {
 
     return moduleLevelPermissions
   }, [activeTab, user?.modules])
+  const canOpenCreatePopup = activeTab === TAB_KEYS.CLASSES || tabPermissions.canAdd
   const showActionColumn = tabPermissions.canAdd || tabPermissions.canEdit || tabPermissions.canDelete
 
   const currentTableData = useMemo(() => {
@@ -239,6 +284,13 @@ function AcademicsPage() {
     if (activeTab === TAB_KEYS.SECTIONS) return sectionsData
     return academicYears
   }, [academicYears, activeTab, classesData, sectionsData])
+
+  const sectionOptions = useMemo(() => (
+    sectionsData.map((section) => ({
+      value: String(section?.id ?? ''),
+      label: section?.name || `Section ${section?.id ?? ''}`,
+    }))
+  ), [sectionsData])
 
   const refreshByTab = async (tab) => {
     if (!user?.access_token) return
@@ -278,6 +330,7 @@ function AcademicsPage() {
     setFormError({})
     setFormData(getInitialFormData(activeTab))
     setEditFormData(getInitialFormData(activeTab))
+    setClassAssignmentRows([createEmptyClassAssignmentRow()])
   }, [activeTab])
 
   const validateForm = (tab, values) => {
@@ -300,6 +353,20 @@ function AcademicsPage() {
       }
     }
 
+    if (tab === TAB_KEYS.CLASSES) {
+      if (!values.section_id) {
+        nextErrors.section_id = 'Section is required.'
+      }
+
+      const hasInvalidAssignment = classAssignmentRows.some((row) => (
+        !row.subject || !row.staff_category || !row.staff_name
+      ))
+
+      if (hasInvalidAssignment) {
+        nextErrors.class_assignments = 'Select subject, staff category, and staff name for each row.'
+      }
+    }
+
     return nextErrors
   }
 
@@ -315,12 +382,16 @@ function AcademicsPage() {
       return
     }
     setFormData(getInitialFormData(activeTab))
+    if (activeTab === TAB_KEYS.CLASSES) {
+      setClassAssignmentRows([createEmptyClassAssignmentRow()])
+    }
   }
 
   const closeCreatePopup = () => {
     setIsCreatePopupOpen(false)
     setFormData(getInitialFormData(activeTab))
     setFormError({})
+    setClassAssignmentRows([createEmptyClassAssignmentRow()])
   }
 
   const closeEditPopup = () => {
@@ -353,6 +424,27 @@ function AcademicsPage() {
       [name]: type === 'checkbox' ? checked : type === 'number' ? Number(value) : value,
     }))
     setFormError((prev) => ({ ...prev, [name]: '', editSubmit: '' }))
+  }
+
+  const handleClassAssignmentChange = (rowId, field, value) => {
+    setClassAssignmentRows((prev) => prev.map((row) => (
+      row.id === rowId
+        ? { ...row, [field]: value }
+        : row
+    )))
+    setFormError((prev) => ({ ...prev, class_assignments: '', submit: '' }))
+  }
+
+  const handleAddClassAssignmentRow = () => {
+    setClassAssignmentRows((prev) => [...prev, createEmptyClassAssignmentRow()])
+  }
+
+  const handleRemoveClassAssignmentRow = (rowId) => {
+    setClassAssignmentRows((prev) => (
+      prev.length === 1
+        ? prev
+        : prev.filter((row) => row.id !== rowId)
+    ))
   }
 
   const handleSetNextAcademicYear = () => {
@@ -697,7 +789,7 @@ function AcademicsPage() {
         <div className="role-management-head">
           <div className="role-management-head-row">
             <h2 className="role-management-title">{currentTabLabel}</h2>
-            {tabPermissions.canAdd && (
+            {canOpenCreatePopup && (
               <button
                 type="button"
                 className="role-management-open-create-btn"
@@ -758,16 +850,19 @@ function AcademicsPage() {
         {message && <p className="role-management-success">{message}</p>}
       </div>
 
-      {isCreatePopupOpen && tabPermissions.canAdd && (
+      {isCreatePopupOpen && canOpenCreatePopup && (
         <div className="custom-popup-backdrop" role="presentation">
           <div
-            className="custom-popup role-management-create-popup"
+            className={`custom-popup ${activeTab === TAB_KEYS.CLASSES ? 'academic-class-create-popup' : 'role-management-create-popup'}`}
             role="dialog"
             aria-modal="true"
             aria-labelledby="create-academic-tab-title"
           >
             <h3 id="create-academic-tab-title" className="custom-popup-title">{`Create ${currentEntityLabel}`}</h3>
-            <form className="role-management-form" onSubmit={handleCreate}>
+            <form
+              className={`role-management-form ${activeTab === TAB_KEYS.CLASSES ? 'academic-class-form' : ''}`.trim()}
+              onSubmit={handleCreate}
+            >
               <div className="role-management-field">
                 <label htmlFor="academic-common-name" className="role-management-label">Name</label>
                 <input
@@ -781,6 +876,110 @@ function AcademicsPage() {
                 />
                 {formError.name && <p className="role-management-field-error">{formError.name}</p>}
               </div>
+
+              {activeTab === TAB_KEYS.CLASSES && (
+                <div className="role-management-field">
+                  <label htmlFor="academic-class-section" className="role-management-label">Section</label>
+                  <select
+                    id="academic-class-section"
+                    name="section_id"
+                    className="role-management-select"
+                    value={formData.section_id}
+                    onChange={handleInputChange}
+                  >
+                    <option value="">Select section</option>
+                    {DEFAULT_SECTION_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                  {formError.section_id && <p className="role-management-field-error">{formError.section_id}</p>}
+                </div>
+              )}
+
+              {activeTab === TAB_KEYS.CLASSES && (
+                <div className="academic-class-builder">
+                  <div className="academic-class-builder-head">
+                    <div>
+                      <p className="academic-class-builder-title">Class Assignments</p>
+                      {/* <p className="academic-class-builder-subtitle">Choose subject, section, staff category, and staff name for each row.</p> */}
+                    </div>
+                    <button
+                      type="button"
+                      className="role-management-open-create-btn academic-class-add-row-btn"
+                      onClick={handleAddClassAssignmentRow}
+                    >
+                      + Add
+                    </button>
+                  </div>
+
+                  <div className="academic-class-assignment-grid academic-class-assignment-grid-head" aria-hidden="true">
+                    <span>Subject</span>
+                    <span>Staff Category</span>
+                    <span>Staff Name</span>
+                    <span>Action</span>
+                  </div>
+
+                  <div className="academic-class-assignment-list">
+                    {classAssignmentRows.map((row, index) => (
+                      <div key={row.id} className="academic-class-assignment-grid">
+                        <select
+                          className="role-management-select"
+                          value={row.subject}
+                          onChange={(event) => handleClassAssignmentChange(row.id, 'subject', event.target.value)}
+                          aria-label={`Subject row ${index + 1}`}
+                        >
+                          <option value="">Select subject</option>
+                          {DEFAULT_SUBJECT_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}
+                        </select>
+
+                        <select
+                          className="role-management-select"
+                          value={row.staff_category}
+                          onChange={(event) => handleClassAssignmentChange(row.id, 'staff_category', event.target.value)}
+                          aria-label={`Staff category row ${index + 1}`}
+                        >
+                          <option value="">Select staff category</option>
+                          {DEFAULT_STAFF_OPTIONS.map((staff) => (
+                            <option key={staff.value} value={staff.value}>
+                              {staff.label}
+                            </option>
+                          ))}
+                        </select>
+
+                        <select
+                          className="role-management-select"
+                          value={row.staff_name}
+                          onChange={(event) => handleClassAssignmentChange(row.id, 'staff_name', event.target.value)}
+                          aria-label={`Staff name row ${index + 1}`}
+                        >
+                          <option value="">Select staff name</option>
+                          {DEFAULT_STAFF_NAME_OPTIONS.map((staff) => (
+                            <option key={staff.value} value={staff.value}>
+                              {staff.label}
+                            </option>
+                          ))}
+                        </select>
+
+                        <button
+                          type="button"
+                          className="role-management-cancel-btn academic-class-remove-row-btn"
+                          onClick={() => handleRemoveClassAssignmentRow(row.id)}
+                          disabled={classAssignmentRows.length === 1}
+                          aria-label={`Remove row ${index + 1}`}
+                        >
+                          X
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {formError.class_assignments && (
+                    <p className="role-management-field-error">{formError.class_assignments}</p>
+                  )}
+                </div>
+              )}
 
               {activeTab === TAB_KEYS.ACADEMIC_YEARS && (
                 <>
