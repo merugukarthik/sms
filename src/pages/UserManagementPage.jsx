@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import CustomPopup from '../components/CustomPopup'
 import CustomTable from '../components/CustomTable'
@@ -6,6 +6,7 @@ import { fetchOrganizations } from '../store/organizationsSlice'
 import { rolesManagement } from '../store/roleSlice'
 import { fetchSchools } from '../store/schoolsSlice'
 import { fetchCreateUser, fetchUpdateUserStatus, fetchUsersList } from '../store/usersSlice'
+import { getCrudPermissions } from '../utils/permissions'
 
 const normalizeUsers = (resp) => (
   Array.isArray(resp?.items)
@@ -58,6 +59,10 @@ function UserManagementPage() {
   const authUser = useSelector((state) => state.auth.user)
   const currentUser = authUser?.user ?? authUser
   const accessToken = authUser?.access_token ?? authUser?.token ?? currentUser?.access_token ?? currentUser?.token ?? ''
+  const permissions = useMemo(
+    () => getCrudPermissions(authUser, { moduleMatchers: ['user'] }),
+    [authUser],
+  )
 
   const [usersData, setUsersData] = useState([])
   const [rolesData, setRolesData] = useState([])
@@ -297,7 +302,10 @@ function UserManagementPage() {
         )
       },
     },
-    {
+  ]
+
+  if (permissions.canUpdate) {
+    userColumns.push({
       key: 'action',
       header: 'Action',
       render: (item) => (
@@ -311,8 +319,8 @@ function UserManagementPage() {
           Edit
         </button>
       ),
-    },
-  ]
+    })
+  }
 
   return (
     <section className="role-management-wrap">
@@ -320,13 +328,15 @@ function UserManagementPage() {
         <div className="role-management-head">
           <div className="role-management-head-row">
             <h2 className="role-management-title">User Management</h2>
-            <button
-              type="button"
-              className="role-management-open-create-btn"
-              onClick={openCreateUserPopup}
-            >
-              Create User
-            </button>
+            {permissions.canCreate && (
+              <button
+                type="button"
+                className="role-management-open-create-btn"
+                onClick={openCreateUserPopup}
+              >
+                Create User
+              </button>
+            )}
           </div>
         </div>
 
@@ -361,6 +371,7 @@ function UserManagementPage() {
         titleId="create-user-title"
         popupClassName="user-create-popup"
       >
+        {permissions.canCreate && (
         <form className="role-management-form role-management-form-two-col" onSubmit={handleCreateUser}>
           <div className="role-management-field">
             <label htmlFor="user-username" className="role-management-label">Username</label>
@@ -438,6 +449,7 @@ function UserManagementPage() {
           </div>
           {createUserError.submit && <p className="role-management-field-error" style={{ gridColumn: '1 / -1' }}>{createUserError.submit}</p>}
         </form>
+        )}
       </CustomPopup>
 
       <CustomPopup
@@ -448,6 +460,7 @@ function UserManagementPage() {
         cancelText="Cancel"
         titleId="update-user-status-title"
       >
+        {permissions.canUpdate && (
         <div className="role-management-form">
           <div className="role-management-field">
             <label htmlFor="user-status-select" className="role-management-label">Status</label>
@@ -481,6 +494,7 @@ function UserManagementPage() {
             </button>
           </div>
         </div>
+        )}
       </CustomPopup>
     </section>
   )

@@ -56,6 +56,31 @@ export const fetchFeeStructure = createAsyncThunk(
   },
 )
 
+export const fetchFeeTypes = createAsyncThunk(
+  'fees/fetchFeeTypes',
+  async ({ access_token }, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/finance/fee-types`, {
+        method: 'GET',
+        headers: {
+          accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${access_token}`,
+        },
+      })
+
+      if (!response.ok) {
+        return rejectWithValue(await getErrorMessage(response, 'Fee types fetch failed'))
+      }
+
+      const data = await response.json().catch(() => ({}))
+      return data
+    } catch {
+      return rejectWithValue('Unable to fetch fee types. Please try again.')
+    }
+  },
+)
+
 export const fetchCreateFeeStructure = createAsyncThunk(
   'fees/fetchCreateFeeStructure',
   async ({
@@ -97,6 +122,143 @@ export const fetchCreateFeeStructure = createAsyncThunk(
       return data
     } catch {
       return rejectWithValue('Unable to create fee structure. Please try again.')
+    }
+  },
+)
+
+export const fetchCreateFeeType = createAsyncThunk(
+  'fees/fetchCreateFeeType',
+  async ({ school_id, code, name, description, access_token }, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/finance/fee-types`, {
+        method: 'POST',
+        headers: {
+          accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${access_token}`,
+        },
+        body: JSON.stringify({
+          school_id,
+          code,
+          name,
+          description,
+        }),
+      })
+
+      if (!response.ok) {
+        return rejectWithValue(await getErrorMessage(response, 'Fee type creation failed'))
+      }
+
+      const data = await response.json().catch(() => ({}))
+      return data
+    } catch {
+      return rejectWithValue('Unable to create fee type. Please try again.')
+    }
+  },
+)
+
+export const fetchUpdateFeeType = createAsyncThunk(
+  'fees/fetchUpdateFeeType',
+  async ({ fee_type_id, code, name, description, access_token }, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/finance/fee-types/${fee_type_id}`, {
+        method: 'PUT',
+        headers: {
+          accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${access_token}`,
+        },
+        body: JSON.stringify({
+          code,
+          name,
+          description,
+        }),
+      })
+
+      if (!response.ok) {
+        return rejectWithValue(await getErrorMessage(response, 'Fee type update failed'))
+      }
+
+      const data = await response.json().catch(() => ({}))
+      return data
+    } catch {
+      return rejectWithValue('Unable to update fee type. Please try again.')
+    }
+  },
+)
+
+export const fetchDeleteFeeType = createAsyncThunk(
+  'fees/fetchDeleteFeeType',
+  async ({ fee_type_id, access_token }, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/finance/fee-types/${fee_type_id}`, {
+        method: 'DELETE',
+        headers: {
+          accept: 'application/json',
+          Authorization: `Bearer ${access_token}`,
+        },
+      })
+
+      if (!response.ok) {
+        return rejectWithValue(await getErrorMessage(response, 'Fee type delete failed'))
+      }
+
+      return { fee_type_id }
+    } catch {
+      return rejectWithValue('Unable to delete fee type. Please try again.')
+    }
+  },
+)
+
+export const fetchCreateFinanceAssignment = createAsyncThunk(
+  'fees/fetchCreateFinanceAssignment',
+  async ({
+    student_id,
+    school_id,
+    amount,
+    fee_type_id,
+    due_date,
+    paid_amount,
+    paid_date,
+    payment_mode,
+    status,
+    academic_year,
+    month,
+    remarks,
+    access_token,
+  }, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/finance/assignments`, {
+        method: 'POST',
+        headers: {
+          accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${access_token}`,
+        },
+        body: JSON.stringify({
+          student_id,
+          school_id,
+          amount,
+          fee_type_id,
+          due_date,
+          paid_amount,
+          paid_date,
+          payment_mode,
+          status,
+          academic_year,
+          month,
+          remarks,
+        }),
+      })
+
+      if (!response.ok) {
+        return rejectWithValue(await getErrorMessage(response, 'Finance assignment creation failed'))
+      }
+
+      const data = await response.json().catch(() => ({}))
+      return data
+    } catch {
+      return rejectWithValue('Unable to create finance assignment. Please try again.')
     }
   },
 )
@@ -185,6 +347,61 @@ const feesSlice = createSlice({
       .addCase(fetchCreateFeeStructure.rejected, (state, action) => {
         state.status = 'failed'
         state.error = action.payload || action.error.message || 'Fee structure create request failed.'
+      })
+      .addCase(fetchFeeTypes.pending, (state) => {
+        state.status = 'loading'
+        state.error = null
+      })
+      .addCase(fetchFeeTypes.fulfilled, (state) => {
+        state.status = 'succeeded'
+      })
+      .addCase(fetchFeeTypes.rejected, (state, action) => {
+        state.status = 'failed'
+        state.error = action.payload || action.error.message || 'Fee types request failed.'
+      })
+      .addCase(fetchCreateFeeType.pending, (state) => {
+        state.status = 'loading'
+        state.error = null
+      })
+      .addCase(fetchCreateFeeType.fulfilled, (state) => {
+        state.status = 'succeeded'
+      })
+      .addCase(fetchCreateFeeType.rejected, (state, action) => {
+        state.status = 'failed'
+        state.error = action.payload || action.error.message || 'Fee type create request failed.'
+      })
+      .addCase(fetchUpdateFeeType.pending, (state) => {
+        state.status = 'loading'
+        state.error = null
+      })
+      .addCase(fetchUpdateFeeType.fulfilled, (state) => {
+        state.status = 'succeeded'
+      })
+      .addCase(fetchUpdateFeeType.rejected, (state, action) => {
+        state.status = 'failed'
+        state.error = action.payload || action.error.message || 'Fee type update request failed.'
+      })
+      .addCase(fetchDeleteFeeType.pending, (state) => {
+        state.status = 'loading'
+        state.error = null
+      })
+      .addCase(fetchDeleteFeeType.fulfilled, (state) => {
+        state.status = 'succeeded'
+      })
+      .addCase(fetchDeleteFeeType.rejected, (state, action) => {
+        state.status = 'failed'
+        state.error = action.payload || action.error.message || 'Fee type delete request failed.'
+      })
+      .addCase(fetchCreateFinanceAssignment.pending, (state) => {
+        state.status = 'loading'
+        state.error = null
+      })
+      .addCase(fetchCreateFinanceAssignment.fulfilled, (state) => {
+        state.status = 'succeeded'
+      })
+      .addCase(fetchCreateFinanceAssignment.rejected, (state, action) => {
+        state.status = 'failed'
+        state.error = action.payload || action.error.message || 'Finance assignment create request failed.'
       })
       .addCase(createRazorpayOrder.pending, (state) => {
         state.status = 'loading'

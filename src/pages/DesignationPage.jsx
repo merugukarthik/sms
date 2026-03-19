@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import CustomPopup from '../components/CustomPopup'
 import CustomTable from '../components/CustomTable'
 import { createDepartmentWithDesignations, fetchDesignationsBySchool } from '../store/staffSlice'
+import { getCrudPermissions } from '../utils/permissions'
 
 const normalizeList = (response) => (
   Array.isArray(response)
@@ -35,6 +36,10 @@ function DesignationPage() {
   const currentUser = authUser?.user ?? authUser
   const accessToken = authUser?.access_token ?? authUser?.token ?? currentUser?.access_token ?? currentUser?.token ?? ''
   const schoolId = getSchoolId(authUser)
+  const permissions = useMemo(
+    () => getCrudPermissions(authUser, { moduleMatchers: ['designation', 'staff', 'teacher'], featureMatchers: ['designation', 'department'] }),
+    [authUser],
+  )
 
   const [designations, setDesignations] = useState([])
   const [isLoading, setIsLoading] = useState(false)
@@ -233,9 +238,11 @@ function DesignationPage() {
         <div className="role-management-head">
           <div className="role-management-head-row">
             <h2 className="role-management-title">Designation</h2>
-            <button type="button" className="role-management-open-create-btn" onClick={openCreatePopup}>
-              Create Department
-            </button>
+            {permissions.canCreate && (
+              <button type="button" className="role-management-open-create-btn" onClick={openCreatePopup}>
+                Create Department
+              </button>
+            )}
           </div>
         </div>
 

@@ -5,6 +5,7 @@ import CustomTable from '../components/CustomTable'
 import { fetchOrganizations } from '../store/organizationsSlice'
 import { fetchCreateRole, fetchDeleteRole, fetchUpdateRole, rolesManagement } from '../store/roleSlice'
 import { fetchSchools } from '../store/schoolsSlice'
+import { getCrudPermissions } from '../utils/permissions'
 
 const normalizeList = (response, key) => (
   Array.isArray(response)
@@ -78,6 +79,10 @@ function RoleManagementPage() {
   const authUser = useSelector((state) => state.auth.user)
   const currentUser = authUser?.user ?? authUser
   const accessToken = authUser?.access_token ?? authUser?.token ?? currentUser?.access_token ?? currentUser?.token ?? ''
+  const permissions = useMemo(
+    () => getCrudPermissions(authUser, { moduleMatchers: ['role'] }),
+    [authUser],
+  )
   const [roles, setRoles] = useState([])
   const [organizations, setOrganizations] = useState([])
   const [schools, setSchools] = useState([])
@@ -139,52 +144,63 @@ function RoleManagementPage() {
     return haystack.includes(search.trim().toLowerCase())
   }), [roles, search])
 
-  const roleColumns = useMemo(() => ([
-    { key: 'name', header: 'Name' },
-    { key: 'description', header: 'Description' },
-    { key: 'scope', header: 'Scope' },
-    {
-      key: 'organization_id',
-      header: 'Organization',
-      render: (role) => organizationMap[String(role?.organization_id ?? '')] || '-',
-    },
-    {
-      key: 'school_id',
-      header: 'School',
-      render: (role) => schoolMap[String(role?.school_id ?? '')] || '-',
-    },
-    {
-      key: 'permissions',
-      header: 'Permissions',
-      render: (role) => Array.isArray(role?.role_features) ? role.role_features.length : 0,
-    },
-    {
-      key: 'status',
-      header: 'Status',
-      render: (role) => (
-        <span className={`role-management-status-pill ${role?.is_active ? 'role-management-status-pill-active' : 'role-management-status-pill-inactive'}`}>
-          {role?.is_active ? 'Active' : 'Inactive'}
-        </span>
-      ),
-    },
-    {
-      key: 'action',
-      header: 'Action',
-      render: (role) => (
-        <div className="role-management-table-actions">
-          <button type="button" className="role-management-action-btn role-management-action-btn-edit" onClick={() => openEdit(role)}>Edit</button>
-          <button
-            type="button"
-            className="role-management-action-btn role-management-action-btn-delete"
-            onClick={() => setDeleteTarget(role)}
-            disabled={deleteLoadingId === String(role?.id)}
-          >
-            {deleteLoadingId === String(role?.id) ? 'Deleting...' : 'Delete'}
-          </button>
-        </div>
-      ),
-    },
-  ]), [deleteLoadingId, openEdit, organizationMap, schoolMap])
+  const roleColumns = useMemo(() => {
+    const columns = [
+      { key: 'name', header: 'Name' },
+      { key: 'description', header: 'Description' },
+      { key: 'scope', header: 'Scope' },
+      {
+        key: 'organization_id',
+        header: 'Organization',
+        render: (role) => organizationMap[String(role?.organization_id ?? '')] || '-',
+      },
+      {
+        key: 'school_id',
+        header: 'School',
+        render: (role) => schoolMap[String(role?.school_id ?? '')] || '-',
+      },
+      {
+        key: 'permissions',
+        header: 'Permissions',
+        render: (role) => Array.isArray(role?.role_features) ? role.role_features.length : 0,
+      },
+      {
+        key: 'status',
+        header: 'Status',
+        render: (role) => (
+          <span className={`role-management-status-pill ${role?.is_active ? 'role-management-status-pill-active' : 'role-management-status-pill-inactive'}`}>
+            {role?.is_active ? 'Active' : 'Inactive'}
+          </span>
+        ),
+      },
+    ]
+
+    if (permissions.canUpdate || permissions.canDelete) {
+      columns.push({
+        key: 'action',
+        header: 'Action',
+        render: (role) => (
+          <div className="role-management-table-actions">
+            {permissions.canUpdate && (
+              <button type="button" className="role-management-action-btn role-management-action-btn-edit" onClick={() => openEdit(role)}>Edit</button>
+            )}
+            {permissions.canDelete && (
+              <button
+                type="button"
+                className="role-management-action-btn role-management-action-btn-delete"
+                onClick={() => setDeleteTarget(role)}
+                disabled={deleteLoadingId === String(role?.id)}
+              >
+                {deleteLoadingId === String(role?.id) ? 'Deleting...' : 'Delete'}
+              </button>
+            )}
+          </div>
+        ),
+      })
+    }
+
+    return columns
+  }, [deleteLoadingId, openEdit, organizationMap, permissions.canDelete, permissions.canUpdate, schoolMap])
 
   const openCreate = () => {
     setEditingRole(null)
@@ -332,7 +348,7 @@ function RoleManagementPage() {
         <div className="role-management-head">
           <div className="role-management-head-row">
             <h2 className="role-management-title">Role Management</h2>
-            <button type="button" className="role-management-open-create-btn" onClick={openCreate}>Create Role</button>
+            {permissions.canCreate && <button type="button" className="role-management-open-create-btn" onClick={openCreate}>Create Role</button>}
           </div>
         </div>
 
@@ -359,6 +375,7 @@ function RoleManagementPage() {
       </div>
 
       <CustomPopup isOpen={popupOpen} title={editingRole ? 'Edit Role' : 'Create Role'} titleId="role-form-title" popupClassName="role-management-create-popup" onClose={closePopup}>
+        {(permissions.canCreate || (editingRole && permissions.canUpdate)) && (
         <form className="role-management-form" onSubmit={handleSubmit}>
           <div className="role-management-form role-management-form-two-col">
           <div className="role-management-field">
@@ -453,6 +470,7 @@ function RoleManagementPage() {
             <button type="submit" className="login-submit-btn custom-popup-btn" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : editingRole ? 'Update Role' : 'Create Role'}</button>
           </div>
         </form>
+        )}
       </CustomPopup>
 
       <CustomPopup

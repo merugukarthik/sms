@@ -10,6 +10,7 @@ import {
   fetchUpdateTransportRoute,
 } from '../store/transportSlice'
 import { fetchStaffList } from '../store/staffSlice'
+import { getCrudPermissions } from '../utils/permissions'
 
 const normalizeList = (resp) => (
   Array.isArray(resp?.items)
@@ -49,56 +50,12 @@ function TransportRoutesPage() {
     driver_user_id: 0,
   })
 
-  const toSlug = (value) => {
-    if (typeof value !== 'string') return ''
-    return value
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-  }
-
-  const getActionValues = (moduleItem) => {
-    const actions = Array.isArray(moduleItem?.actions) ? moduleItem.actions : []
-    return actions
-      .map((actionItem) => {
-        if (typeof actionItem === 'string') return toSlug(actionItem)
-        return toSlug(
-          actionItem?.id
-            || actionItem?.name
-            || actionItem?.display_name
-            || actionItem?.action
-            || actionItem?.value
-            || actionItem?.code
-            || '',
-        )
-      })
-      .filter(Boolean)
-  }
-
   const permissions = useMemo(() => {
-    const modules = Array.isArray(user?.modules) ? user.modules : []
-    const transportModule = modules.find((moduleItem) => {
-      const slug = toSlug(moduleItem?.name || moduleItem?.display_name || '')
-      return slug === 'transport' || slug.includes('transport')
+    return getCrudPermissions(user, {
+      moduleMatchers: ['transport'],
+      featureMatchers: ['route'],
     })
-
-    const actionValues = getActionValues(transportModule)
-    if (actionValues.length === 0) {
-      return {
-        canView: true,
-        canAdd: false,
-        canEdit: false,
-        canDelete: false,
-      }
-    }
-
-    const canAdd = actionValues.includes('add') || actionValues.includes('create')
-    const canEdit = actionValues.includes('edit') || actionValues.includes('update')
-    const canDelete = actionValues.includes('delete') || actionValues.includes('remove')
-    const canView = actionValues.includes('view') || canAdd || canEdit || canDelete
-    return { canView, canAdd, canEdit, canDelete }
-  }, [user?.modules])
+  }, [user])
 
   const showActionColumn = permissions.canAdd || permissions.canEdit || permissions.canDelete
 
@@ -394,7 +351,7 @@ function TransportRoutesPage() {
         {message && <p className="role-management-success">{message}</p>}
       </div>
 
-      {isCreatePopupOpen && (
+      {isCreatePopupOpen && permissions.canAdd && (
         <CustomPopup
           isOpen={isCreatePopupOpen}
           title="Create Route"
@@ -487,7 +444,7 @@ function TransportRoutesPage() {
         </CustomPopup>
       )}
 
-      {editingRoute && (
+      {editingRoute && permissions.canEdit && (
         <div className="custom-popup-backdrop" role="presentation">
           <div
             className="custom-popup role-management-edit-popup"

@@ -47,7 +47,7 @@ export const fetchAcademicYears = createAsyncThunk(
 
 export const fetchCreateAcademicYear = createAsyncThunk(
   'academic/fetchCreateAcademicYear',
-  async ({ name, academic_year, start_date, end_date, is_current, access_token }, { rejectWithValue }) => {
+  async ({ name, academic_year, start_date, end_date, is_current, school_id, access_token }, { rejectWithValue }) => {
     try {
       const response = await fetch(`${API_BASE_URL}/academics/years`, {
         method: 'POST',
@@ -56,7 +56,7 @@ export const fetchCreateAcademicYear = createAsyncThunk(
           'Content-Type': 'application/json',
           Authorization: 'Bearer ' + access_token,
         },
-        body: JSON.stringify({ name, academic_year, start_date, end_date, is_current }),
+        body: JSON.stringify({ name, academic_year, start_date, end_date, is_current, school_id }),
       })
 
       if (!response.ok) {
@@ -147,7 +147,17 @@ export const fetchClasses = createAsyncThunk(
 
 export const fetchCreateClass = createAsyncThunk(
   'academic/fetchCreateClass',
-  async ({ name, access_token }, { rejectWithValue }) => {
+  async ({
+    //class_id,
+    school_id,
+    class_name,
+    class_code,
+    sort_order,
+    section_id,
+    academic_year_id,
+    subjects,
+    access_token,
+  }, { rejectWithValue }) => {
     try {
       const response = await fetch(`${API_BASE_URL}/academics/classes`, {
         method: 'POST',
@@ -156,7 +166,16 @@ export const fetchCreateClass = createAsyncThunk(
           'Content-Type': 'application/json',
           Authorization: 'Bearer ' + access_token,
         },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({
+         // class_id,
+          school_id,
+          class_name,
+          class_code,
+          sort_order,
+          section_id,
+          academic_year_id,
+          subjects,
+        }),
       })
 
       if (!response.ok) {
@@ -245,9 +264,126 @@ export const fetchSections = createAsyncThunk(
   },
 )
 
+export const fetchSubjects = createAsyncThunk(
+  'academic/fetchSubjects',
+  async ({ access_token, page = 1, page_size = 10 }, { rejectWithValue }) => {
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        page_size: String(page_size),
+      })
+
+      const response = await fetch(`${API_BASE_URL}/academics/subjects?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + access_token,
+        },
+      })
+
+      if (!response.ok) {
+        return rejectWithValue(await getErrorMessage(response, 'Subjects fetch failed'))
+      }
+
+      const data = await response.json().catch(() => ({}))
+      return data
+    } catch {
+      return rejectWithValue('Unable to fetch subjects. Please try again.')
+    }
+  },
+)
+
+export const fetchCreateSubject = createAsyncThunk(
+  'academic/fetchCreateSubject',
+  async ({ class_id, section_id, name, code, description, access_token }, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/academics/subjects`, {
+        method: 'POST',
+        headers: {
+          accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + access_token,
+        },
+        body: JSON.stringify({
+          class_id,
+          section_id,
+          name,
+          code,
+          description,
+        }),
+      })
+
+      if (!response.ok) {
+        return rejectWithValue(await getErrorMessage(response, 'Subject creation failed'))
+      }
+
+      const data = await response.json().catch(() => ({}))
+      return data
+    } catch {
+      return rejectWithValue('Unable to create subject. Please try again.')
+    }
+  },
+)
+
+export const fetchUpdateSubject = createAsyncThunk(
+  'academic/fetchUpdateSubject',
+  async ({ subject_id, class_id, section_id, name, code, description, access_token }, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/academics/subjects/${subject_id}`, {
+        method: 'PUT',
+        headers: {
+          accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + access_token,
+        },
+        body: JSON.stringify({
+          class_id,
+          section_id,
+          name,
+          code,
+          description,
+        }),
+      })
+
+      if (!response.ok) {
+        return rejectWithValue(await getErrorMessage(response, 'Subject update failed'))
+      }
+
+      const data = await response.json().catch(() => ({}))
+      return data
+    } catch {
+      return rejectWithValue('Unable to update subject. Please try again.')
+    }
+  },
+)
+
+export const fetchDeleteSubject = createAsyncThunk(
+  'academic/fetchDeleteSubject',
+  async ({ subject_id, access_token }, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/academics/subjects/${subject_id}`, {
+        method: 'DELETE',
+        headers: {
+          accept: 'application/json',
+          Authorization: 'Bearer ' + access_token,
+        },
+      })
+
+      if (!response.ok) {
+        return rejectWithValue(await getErrorMessage(response, 'Subject delete failed'))
+      }
+
+      return { subject_id }
+    } catch {
+      return rejectWithValue('Unable to delete subject. Please try again.')
+    }
+  },
+)
+
 export const fetchCreateSection = createAsyncThunk(
   'academic/fetchCreateSection',
-  async ({ name, class_id, access_token }, { rejectWithValue }) => {
+  async ({ school_id, name, code, access_token }, { rejectWithValue }) => {
     try {
       const response = await fetch(`${API_BASE_URL}/academics/sections`, {
         method: 'POST',
@@ -256,7 +392,7 @@ export const fetchCreateSection = createAsyncThunk(
           'Content-Type': 'application/json',
           Authorization: 'Bearer ' + access_token,
         },
-        body: JSON.stringify({ name, class_id }),
+        body: JSON.stringify({ school_id, name, code }),
       })
 
       if (!response.ok) {

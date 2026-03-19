@@ -6,69 +6,79 @@ import {
   fetchCreateAcademicYear,
   fetchCreateClass,
   fetchCreateSection,
+  fetchCreateSubject,
   fetchDeleteAcademicYear,
   fetchDeleteClass,
   fetchDeleteSection,
+  fetchDeleteSubject,
   fetchSections,
+  fetchSubjects,
   fetchUpdateAcademicYear,
   fetchUpdateClass,
   fetchUpdateSection,
+  fetchUpdateSubject,
 } from '../store/academicSlice'
+import { fetchSchools } from '../store/schoolsSlice'
+import { fetchStaffList } from '../store/staffSlice'
 import CustomPopup from '../components/CustomPopup'
 import CustomTable from '../components/CustomTable'
+import { getCrudPermissions } from '../utils/permissions'
 
 const TAB_KEYS = {
   ACADEMIC_YEARS: 'academic-years',
   CLASSES: 'classes',
   SECTIONS: 'sections',
+  SUBJECTS: 'subjects',
 }
 
 const TAB_LABELS = {
   [TAB_KEYS.ACADEMIC_YEARS]: 'Academic Years',
   [TAB_KEYS.CLASSES]: 'Classes',
   [TAB_KEYS.SECTIONS]: 'Sections',
+  [TAB_KEYS.SUBJECTS]: 'Subjects',
 }
 
 const TAB_ENTITY_LABELS = {
   [TAB_KEYS.ACADEMIC_YEARS]: 'Academic Year',
   [TAB_KEYS.CLASSES]: 'Class',
   [TAB_KEYS.SECTIONS]: 'Section',
+  [TAB_KEYS.SUBJECTS]: 'Subject',
+}
+
+const SUPPORTED_TAB_METADATA = {
+  [TAB_KEYS.ACADEMIC_YEARS]: { label: 'Academic Years', entityLabel: 'Academic Year', supported: true },
+  [TAB_KEYS.CLASSES]: { label: 'Classes', entityLabel: 'Class', supported: true },
+  [TAB_KEYS.SECTIONS]: { label: 'Sections', entityLabel: 'Section', supported: true },
+  [TAB_KEYS.SUBJECTS]: { label: 'Subjects', entityLabel: 'Subject', supported: true },
 }
 
 const DEFAULT_SUBJECT_OPTIONS = [
-  { value: 'mathematics', label: 'Mathematics' },
-  { value: 'science', label: 'Science' },
-  { value: 'english', label: 'English' },
-  { value: 'social-studies', label: 'Social Studies' },
-  { value: 'computer-science', label: 'Computer Science' },
-]
-const DEFAULT_SECTION_OPTIONS = [
-  { value: 'Section_a', label: 'Section A' },
-  { value: 'Section_b', label: 'Section B' },
-  { value: 'Section_c', label: 'Section C' },
-  { value: 'Section_d', label: 'Section D' },
-  
+  { value: '1', label: 'Mathematics' },
+  { value: '2', label: 'Science' },
+  { value: '3', label: 'English' },
+  { value: '4', label: 'Social Studies' },
+  { value: '5', label: 'Computer Science' },
 ]
 
-
-const DEFAULT_STAFF_OPTIONS = [
-  { value: 'teacher-1', label: 'Class Teacher' },
-  { value: 'teacher-2', label: 'Subject Teacher' },
-  { value: 'teacher-3', label: 'Assistant Teacher' },
+const SAMPLE_TEACHER_OPTIONS = [
+  { value: '1', label: 'Priya Sharma' },
+  { value: '2', label: 'Arjun Reddy' },
+  { value: '3', label: 'Neha Verma' },
+  { value: '4', label: 'Rahul Kumar' },
+  { value: '5', label: 'Anita Singh' },
 ]
 
-const DEFAULT_STAFF_NAME_OPTIONS = [
-  { value: 'priya-sharma', label: 'Priya Sharma' },
-  { value: 'arjun-reddy', label: 'Arjun Reddy' },
-  { value: 'neha-verma', label: 'Neha Verma' },
-  { value: 'rahul-kumar', label: 'Rahul Kumar' },
+const SAMPLE_SECTION_OPTIONS = [
+  { value: '1', label: 'Section A' },
+  { value: '2', label: 'Section B' },
+  { value: '3', label: 'Section C' },
+  { value: '4', label: 'Section D' },
 ]
 
 const createEmptyClassAssignmentRow = () => ({
   id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  subject: '',
-  staff_category: '',
-  staff_name: '',
+  subject_id: '',
+  teacher_id: '',
 })
 
 const toSlug = (value) => {
@@ -80,61 +90,12 @@ const toSlug = (value) => {
     .replace(/^-+|-+$/g, '')
 }
 
-const getFeatureSlug = (feature) => toSlug(
-  feature?.name || feature?.display_name || feature?.feature_name || '',
-)
-
-const getFeatureActionValues = (feature) => {
-  const actionSources = [
-    ...(Array.isArray(feature?.actions) ? feature.actions : []),
-    ...(Array.isArray(feature?.permission) ? feature.permission : []),
-    ...(Array.isArray(feature?.permissions) ? feature.permissions : []),
-    ...(Array.isArray(feature?.feature_actions) ? feature.feature_actions : []),
-    ...(Array.isArray(feature?.action_list) ? feature.action_list : []),
-  ]
-
-  const actions = actionSources.length > 0 ? actionSources : (
-    Array.isArray(feature?.feature?.actions) ? feature.feature.actions : []
-  )
-
-  return actions
-    .map((actionItem) => {
-      if (typeof actionItem === 'string') return toSlug(actionItem)
-      return toSlug(
-        actionItem?.id
-          || actionItem?.name
-          || actionItem?.display_name
-          || actionItem?.action
-          || actionItem?.value
-          || actionItem?.code
-          || '',
-      )
-    })
-    .filter(Boolean)
-}
-
-const getPermissionsFromActions = (actionValues) => {
-  if (!Array.isArray(actionValues) || actionValues.length === 0) {
-    return {
-      canView: true,
-      canAdd: false,
-      canEdit: false,
-      canDelete: false,
-    }
-  }
-
-  const canAdd = actionValues.includes('add') || actionValues.includes('create')
-  const canEdit = actionValues.includes('edit') || actionValues.includes('update')
-  const canDelete = actionValues.includes('delete') || actionValues.includes('remove')
-  const canView = actionValues.includes('view') || canAdd || canEdit || canDelete
-  return { canView, canAdd, canEdit, canDelete }
-}
-
 const getInitialFormData = (tab) => {
   if (tab === TAB_KEYS.ACADEMIC_YEARS) {
     return {
       name: '',
       academic_year: '',
+      school_id: '',
       // start_date: '',
       // end_date: '',
       is_current: false,
@@ -143,15 +104,28 @@ const getInitialFormData = (tab) => {
 
   if (tab === TAB_KEYS.SECTIONS) {
     return {
+      school_id: '',
       name: '',
-      class_id: 0,
+      code: '',
     }
   }
 
   if (tab === TAB_KEYS.CLASSES) {
     return {
-      name: '',
+      school_id: '',
+      class_name: '',
       section_id: '',
+      academic_year_id: '',
+    }
+  }
+
+  if (tab === TAB_KEYS.SUBJECTS) {
+    return {
+      class_id: '',
+      section_id: '',
+      name: '',
+      code: '',
+      description: '',
     }
   }
 
@@ -160,14 +134,16 @@ const getInitialFormData = (tab) => {
   }
 }
 
-const normalizeList = (resp) => (
+const normalizeList = (resp, key) => (
   Array.isArray(resp?.items)
     ? resp.items
     : Array.isArray(resp)
       ? resp
       : Array.isArray(resp?.data)
         ? resp.data
-        : []
+        : Array.isArray(resp?.[key])
+          ? resp[key]
+          : []
 )
 
 const parseAcademicYearStart = (value) => {
@@ -183,14 +159,69 @@ const formatAcademicYear = (startYear) => {
   return `${startYear}-${endYearShort}`
 }
 
+const toEntityLabel = (label) => {
+  const text = String(label || '').trim()
+  if (!text) return 'Item'
+  if (text.endsWith('ies')) return `${text.slice(0, -3)}y`
+  if (text.endsWith('s')) return text.slice(0, -1)
+  return text
+}
+
+const getAcademicsTabsFromPermissions = (authUser) => {
+  const currentUser = authUser?.user ?? authUser
+  const modules = Array.isArray(currentUser?.permissions)
+    ? currentUser.permissions
+    : Array.isArray(currentUser?.modules)
+      ? currentUser.modules
+      : []
+
+  const academicsModule = modules.find((moduleItem) => {
+    const moduleName = toSlug(moduleItem?.module_name || moduleItem?.display_name || moduleItem?.name || '')
+    return moduleName === 'academics' || moduleName === 'academic' || moduleName.includes('academic')
+  })
+
+  const featureList = Array.isArray(academicsModule?.features)
+    ? academicsModule.features
+    : Array.isArray(academicsModule?.module_features)
+      ? academicsModule.module_features
+      : []
+
+  const tabs = featureList.map((featureItem, index) => {
+    const feature = featureItem?.feature ?? featureItem
+    const featureName = featureItem?.feature_name || feature?.feature_name || feature?.display_name || feature?.name || ''
+    const normalizedName = toSlug(featureName)
+
+    if (!featureName) return null
+    if (normalizedName === 'academic-years' || normalizedName === 'academic-year') return { key: TAB_KEYS.ACADEMIC_YEARS, ...SUPPORTED_TAB_METADATA[TAB_KEYS.ACADEMIC_YEARS] }
+    if (normalizedName === 'classes' || normalizedName === 'class') return { key: TAB_KEYS.CLASSES, ...SUPPORTED_TAB_METADATA[TAB_KEYS.CLASSES] }
+    if (normalizedName === 'sections' || normalizedName === 'section') return { key: TAB_KEYS.SECTIONS, ...SUPPORTED_TAB_METADATA[TAB_KEYS.SECTIONS] }
+    if (normalizedName === 'subjects' || normalizedName === 'subject') return { key: TAB_KEYS.SUBJECTS, ...SUPPORTED_TAB_METADATA[TAB_KEYS.SUBJECTS] }
+
+    return {
+      key: `feature-${featureItem?.feature_id ?? feature?.id ?? index}-${normalizedName || index}`,
+      label: featureName,
+      entityLabel: toEntityLabel(featureName),
+      supported: false,
+    }
+  }).filter(Boolean)
+
+  if (tabs.length > 0) return tabs
+
+  return Object.entries(SUPPORTED_TAB_METADATA).map(([key, value]) => ({ key, ...value }))
+}
+
 function AcademicsPage() {
   const dispatch = useDispatch()
   const { user } = useSelector((state) => state.auth)
+  const availableTabs = useMemo(() => getAcademicsTabsFromPermissions(user), [user])
 
   const [activeTab, setActiveTab] = useState(TAB_KEYS.ACADEMIC_YEARS)
   const [academicYears, setAcademicYears] = useState([])
   const [classesData, setClassesData] = useState([])
   const [sectionsData, setSectionsData] = useState([])
+  const [subjectsData, setSubjectsData] = useState([])
+  const [schoolsData, setSchoolsData] = useState([])
+  const [teachersData, setTeachersData] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [actionLoadingId, setActionLoadingId] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -209,88 +240,77 @@ function AcademicsPage() {
   const canDecrementAcademicYear = Number.isInteger(selectedAcademicStartYear) && selectedAcademicStartYear > currentCalendarYear
   const canIncrementAcademicYear = false
 
-  const currentTabLabel = TAB_LABELS[activeTab]
-  const currentEntityLabel = TAB_ENTITY_LABELS[activeTab]
+  const activeTabConfig = useMemo(
+    () => availableTabs.find((tab) => tab.key === activeTab) || availableTabs[0] || { key: TAB_KEYS.ACADEMIC_YEARS, ...SUPPORTED_TAB_METADATA[TAB_KEYS.ACADEMIC_YEARS] },
+    [activeTab, availableTabs],
+  )
+  const currentTabLabel = activeTabConfig.label
+  const currentEntityLabel = activeTabConfig.entityLabel
+  const isClassesTab = activeTab === TAB_KEYS.CLASSES
+  const isSectionsTab = activeTab === TAB_KEYS.SECTIONS
+  const isAcademicYearsTab = activeTab === TAB_KEYS.ACADEMIC_YEARS
+  const isSubjectsTab = activeTab === TAB_KEYS.SUBJECTS
+  const isSupportedTab = Boolean(activeTabConfig.supported)
 
   const tabPermissions = useMemo(() => {
-    const defaultPermission = {
-      canView: true,
-      canAdd: false,
-      canEdit: false,
-      canDelete: false,
-    }
-
-    const modules = Array.isArray(user?.modules) ? user.modules : []
-    const academicsModule = modules.find((moduleItem) => {
-      const moduleSlug = toSlug(moduleItem?.name || moduleItem?.display_name || '')
-      return moduleSlug === 'academics' || moduleSlug === 'academic' || moduleSlug.includes('academic')
+    return getCrudPermissions(user, {
+      moduleMatchers: ['academics', 'academic', 'class'],
+      featureMatchers: [currentTabLabel],
+      featureMatchMode: 'exact',
     })
-
-    if (!academicsModule) return defaultPermission
-
-    const featureList = Array.isArray(academicsModule?.features)
-      ? academicsModule.features
-      : Array.isArray(academicsModule?.module_features)
-        ? academicsModule.module_features
-        : []
-
-    const moduleActionValues = getFeatureActionValues(academicsModule)
-    const moduleLevelPermissions = getPermissionsFromActions(moduleActionValues)
-
-    // Priority 1: use module-level actions directly when provided by API.
-    // Example:
-    // actions: ["view"] -> read-only
-    // actions: ["create","delete","update","view"] -> full action controls
-    if (moduleActionValues.length > 0) {
-      return moduleLevelPermissions
-    }
-
-    if (featureList.length === 0) {
-      return moduleLevelPermissions
-    }
-
-    const targetFeature = featureList.find((featureItem) => {
-      const slug = getFeatureSlug(featureItem)
-      if (activeTab === TAB_KEYS.CLASSES) return slug.includes('class')
-      if (activeTab === TAB_KEYS.SECTIONS) return slug.includes('section')
-      return slug.includes('year') || slug.includes('academic-year')
-    })
-
-    if (targetFeature) {
-      const featurePermissions = getPermissionsFromActions(getFeatureActionValues(targetFeature))
-      if (featurePermissions.canAdd || featurePermissions.canEdit || featurePermissions.canDelete) {
-        return featurePermissions
-      }
-    }
-
-    // Fallback: combine all feature actions for academics module.
-    const combinedFeatureActions = featureList.flatMap((featureItem) => getFeatureActionValues(featureItem))
-    const combinedFeaturePermissions = getPermissionsFromActions(combinedFeatureActions)
-    if (combinedFeaturePermissions.canAdd || combinedFeaturePermissions.canEdit || combinedFeaturePermissions.canDelete) {
-      return combinedFeaturePermissions
-    }
-
-    if (combinedFeaturePermissions.canView) {
-      return combinedFeaturePermissions
-    }
-
-    return moduleLevelPermissions
-  }, [activeTab, user?.modules])
-  const canOpenCreatePopup = activeTab === TAB_KEYS.CLASSES || tabPermissions.canAdd
+  }, [currentTabLabel, user])
+  const canOpenCreatePopup = isSupportedTab && tabPermissions.canCreate
+  const canShowCreateButton = isSupportedTab && tabPermissions.canCreate
   const showActionColumn = tabPermissions.canAdd || tabPermissions.canEdit || tabPermissions.canDelete
 
   const currentTableData = useMemo(() => {
-    if (activeTab === TAB_KEYS.CLASSES) return classesData
-    if (activeTab === TAB_KEYS.SECTIONS) return sectionsData
+    if (isClassesTab) return classesData
+    if (isSectionsTab) return sectionsData
+    if (isSubjectsTab) return subjectsData
+    if (!isAcademicYearsTab) return []
     return academicYears
-  }, [academicYears, activeTab, classesData, sectionsData])
+  }, [academicYears, classesData, isAcademicYearsTab, isClassesTab, isSectionsTab, isSubjectsTab, sectionsData, subjectsData])
 
-  const sectionOptions = useMemo(() => (
-    sectionsData.map((section) => ({
-      value: String(section?.id ?? ''),
-      label: section?.name || `Section ${section?.id ?? ''}`,
+  const schoolOptions = useMemo(() => (
+    schoolsData.map((school, index) => ({
+      value: String(school?.id ?? ''),
+      label: school?.name || `School ${index + 1}`,
     }))
+  ), [schoolsData])
+  const sectionOptions = useMemo(() => (
+    sectionsData.length > 0
+      ? sectionsData.map((section, index) => ({
+        value: String(section?.id ?? ''),
+        label: section?.name || `Section ${index + 1}`,
+      }))
+      : SAMPLE_SECTION_OPTIONS
   ), [sectionsData])
+  const academicYearOptions = useMemo(() => (
+    academicYears.map((year, index) => ({
+      value: String(year?.id ?? ''),
+      label: year?.name || year?.academic_year || `Academic Year ${index + 1}`,
+    }))
+  ), [academicYears])
+  const teacherOptions = useMemo(() => (
+    teachersData.length > 0
+      ? teachersData.map((teacher, index) => ({
+        value: String(teacher?.id ?? ''),
+        label: String(
+          teacher?.full_name
+          || `${teacher?.first_name || ''} ${teacher?.last_name || ''}`.trim()
+          || teacher?.name
+          || `Teacher ${index + 1}`,
+        ),
+      }))
+      : SAMPLE_TEACHER_OPTIONS
+  ), [teachersData])
+
+  useEffect(() => {
+    if (availableTabs.length === 0) return
+    if (!availableTabs.some((tab) => tab.key === activeTab)) {
+      setActiveTab(availableTabs[0].key)
+    }
+  }, [activeTab, availableTabs])
 
   const refreshByTab = async (tab) => {
     if (!user?.access_token) return
@@ -304,14 +324,28 @@ function AcademicsPage() {
       } else if (tab === TAB_KEYS.SECTIONS) {
         const resp = await dispatch(fetchSections({ access_token: user.access_token })).unwrap()
         setSectionsData(normalizeList(resp))
-      } else {
+      } else if (tab === TAB_KEYS.SUBJECTS) {
+        const resp = await dispatch(fetchSubjects({
+          access_token: user.access_token,
+          page: 1,
+          page_size: 10,
+        })).unwrap()
+        setSubjectsData(normalizeList(resp))
+      } else if (tab === TAB_KEYS.ACADEMIC_YEARS) {
         const resp = await dispatch(fetchAcademicYears({ access_token: user.access_token })).unwrap()
+        console.log('academics years res:- ',resp)
         setAcademicYears(normalizeList(resp))
+      } else {
+        setAcademicYears([])
+        setClassesData([])
+        setSectionsData([])
+        setSubjectsData([])
       }
     } catch (err) {
       setError(typeof err === 'string' ? err : `Failed to fetch ${currentTabLabel.toLowerCase()}.`)
       if (tab === TAB_KEYS.CLASSES) setClassesData([])
       if (tab === TAB_KEYS.SECTIONS) setSectionsData([])
+      if (tab === TAB_KEYS.SUBJECTS) setSubjectsData([])
       if (tab === TAB_KEYS.ACADEMIC_YEARS) setAcademicYears([])
     } finally {
       setIsLoading(false)
@@ -322,6 +356,50 @@ function AcademicsPage() {
     refreshByTab(activeTab)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dispatch, user?.access_token, activeTab])
+
+  useEffect(() => {
+    const loadSchools = async () => {
+      if (!user?.access_token) return
+
+      try {
+        const resp = await dispatch(fetchSchools({
+          access_token: user.access_token,
+          organization_id: 1,
+          page: 1,
+          page_size: 10,
+        })).unwrap()
+        setSchoolsData(normalizeList(resp, 'schools'))
+      } catch {
+        setSchoolsData([])
+      }
+    }
+
+    loadSchools()
+  }, [dispatch, user?.access_token])
+
+  useEffect(() => {
+    const loadClassFormOptions = async () => {
+      if (!user?.access_token) return
+
+      try {
+        const [classesResp, sectionsResp, academicYearsResp, teachersResp] = await Promise.all([
+          dispatch(fetchClasses({ access_token: user.access_token })).unwrap(),
+          dispatch(fetchSections({ access_token: user.access_token })).unwrap(),
+          dispatch(fetchAcademicYears({ access_token: user.access_token })).unwrap(),
+          dispatch(fetchStaffList({ access_token: user.access_token, page: 1, page_size: 200 })).unwrap(),
+        ])
+
+        setClassesData(normalizeList(classesResp))
+        setSectionsData(normalizeList(sectionsResp))
+        setAcademicYears(normalizeList(academicYearsResp))
+        setTeachersData(normalizeList(teachersResp))
+      } catch {
+        // Keep existing data when auxiliary options fail to load.
+      }
+    }
+
+    loadClassFormOptions()
+  }, [dispatch, user?.access_token])
 
   useEffect(() => {
     setIsCreatePopupOpen(false)
@@ -338,7 +416,8 @@ function AcademicsPage() {
     if (tab === TAB_KEYS.ACADEMIC_YEARS) {
       if (!values.name?.trim()) nextErrors.name = 'Name is required.'
       if (!String(values.academic_year ?? '').trim()) nextErrors.academic_year = 'Academic year is required.'
-    } else if (!values.name?.trim()) {
+      if (!String(values.school_id ?? '').trim()) nextErrors.school_id = 'School is required.'
+    } else if (tab !== TAB_KEYS.CLASSES && !values.name?.trim()) {
       nextErrors.name = 'Name is required.'
     }
 
@@ -348,23 +427,40 @@ function AcademicsPage() {
     // }
 
     if (tab === TAB_KEYS.SECTIONS) {
-      if (!values.class_id || Number(values.class_id) <= 0) {
-        nextErrors.class_id = 'Class id is required.'
-      }
+      if (!String(values.school_id ?? '').trim()) nextErrors.school_id = 'School is required.'
+      if (!values.name?.trim()) nextErrors.name = 'Name is required.'
+      if (!String(values.code ?? '').trim()) nextErrors.code = 'Code is required.'
     }
 
     if (tab === TAB_KEYS.CLASSES) {
+      if (!String(values.school_id ?? '').trim()) {
+        nextErrors.school_id = 'School is required.'
+      }
+      if (!String(values.class_name ?? '').trim()) {
+        nextErrors.class_name = 'Class name is required.'
+      }
       if (!values.section_id) {
         nextErrors.section_id = 'Section is required.'
       }
+      if (!values.academic_year_id) {
+        nextErrors.academic_year_id = 'Academic year is required.'
+      }
 
       const hasInvalidAssignment = classAssignmentRows.some((row) => (
-        !row.subject || !row.staff_category || !row.staff_name
+        !String(row.subject_id ?? '').trim() || !String(row.teacher_id ?? '').trim()
       ))
 
       if (hasInvalidAssignment) {
-        nextErrors.class_assignments = 'Select subject, staff category, and staff name for each row.'
+        nextErrors.class_assignments = 'Enter subject id and teacher id for each row.'
       }
+    }
+
+    if (tab === TAB_KEYS.SUBJECTS) {
+      if (!String(values.class_id ?? '').trim()) nextErrors.class_id = 'Class is required.'
+      if (!String(values.section_id ?? '').trim()) nextErrors.section_id = 'Section is required.'
+      if (!String(values.name ?? '').trim()) nextErrors.name = 'Name is required.'
+      if (!String(values.code ?? '').trim()) nextErrors.code = 'Code is required.'
+      if (!String(values.description ?? '').trim()) nextErrors.description = 'Description is required.'
     }
 
     return nextErrors
@@ -485,7 +581,6 @@ function AcademicsPage() {
 
   const handleCreate = async (event) => {
     event.preventDefault()
-    console.log('academic form data:- ',formData)
     const validationErrors = validateForm(activeTab, formData)
     if (Object.keys(validationErrors).length > 0) {
       setFormError(validationErrors)
@@ -500,26 +595,54 @@ function AcademicsPage() {
     setIsSubmitting(true)
     try {
       if (activeTab === TAB_KEYS.CLASSES) {
-        await dispatch(fetchCreateClass({ name: formData.name, access_token: user.access_token })).unwrap()
+        await dispatch(fetchCreateClass({
+          //class_id: 0,
+          school_id: Number(formData.school_id),
+          class_name: formData.class_name.trim(),
+          class_code: 'c1',
+          sort_order: 0,
+          section_id: Number(formData.section_id),
+          academic_year_id: Number(formData.academic_year_id),
+          subjects: classAssignmentRows.map((row) => ({
+            subject_id: String(row.subject_id).trim(),
+            teacher_id: Number(row.teacher_id),
+          })),
+          access_token: user.access_token,
+        })).unwrap()
       } else if (activeTab === TAB_KEYS.SECTIONS) {
         await dispatch(
           fetchCreateSection({
+            school_id: Number(formData.school_id),
             name: formData.name,
-            class_id: formData.class_id,
+            code: formData.code,
             access_token: user.access_token,
           }),
         ).unwrap()
-      } else {
+      } else if (activeTab === TAB_KEYS.ACADEMIC_YEARS) {
         await dispatch(
           fetchCreateAcademicYear({
             name: formData.name,
-            academic_year: currentAcademicYearValue,
+            academic_year: formData.academic_year,
+            school_id: Number(formData.school_id),
             // start_date: formData.start_date,
             // end_date: formData.end_date,
             is_current: Boolean(formData.is_current),
             access_token: user.access_token,
           }),
         ).unwrap()
+      } else if (activeTab === TAB_KEYS.SUBJECTS) {
+        await dispatch(
+          fetchCreateSubject({
+            class_id: Number(formData.class_id),
+            section_id: Number(formData.section_id),
+            name: String(formData.name || '').trim(),
+            code: String(formData.code || '').trim(),
+            description: String(formData.description || '').trim(),
+            access_token: user.access_token,
+          }),
+        ).unwrap()
+      } else {
+        throw new Error(`${currentTabLabel} is not configured yet.`)
       }
 
       setMessage(`${currentEntityLabel} created successfully.`)
@@ -549,10 +672,20 @@ function AcademicsPage() {
         name: item?.name || '',
         class_id: Number(item?.class_id ?? 0),
       })
-    } else {
+    } else if (activeTab === TAB_KEYS.CLASSES) {
       setEditFormData({
         name: item?.name || '',
       })
+    } else if (activeTab === TAB_KEYS.SUBJECTS) {
+      setEditFormData({
+        class_id: String(item?.class_id ?? ''),
+        section_id: String(item?.section_id ?? ''),
+        name: item?.name || '',
+        code: item?.code || '',
+        description: item?.description || '',
+      })
+    } else {
+      setEditFormData(getInitialFormData(activeTab))
     }
     setFormError({})
     setMessage('')
@@ -590,7 +723,7 @@ function AcademicsPage() {
             access_token: user.access_token,
           }),
         ).unwrap()
-      } else {
+      } else if (activeTab === TAB_KEYS.ACADEMIC_YEARS) {
         await dispatch(
           fetchUpdateAcademicYear({
             id: editingItem.id,
@@ -602,6 +735,20 @@ function AcademicsPage() {
             access_token: user.access_token,
           }),
         ).unwrap()
+      } else if (activeTab === TAB_KEYS.SUBJECTS) {
+        await dispatch(
+          fetchUpdateSubject({
+            subject_id: editingItem.id,
+            class_id: Number(editFormData.class_id),
+            section_id: Number(editFormData.section_id),
+            name: String(editFormData.name || '').trim(),
+            code: String(editFormData.code || '').trim(),
+            description: String(editFormData.description || '').trim(),
+            access_token: user.access_token,
+          }),
+        ).unwrap()
+      } else {
+        throw new Error(`${currentTabLabel} is not configured yet.`)
       }
 
       closeEditPopup()
@@ -637,8 +784,12 @@ function AcademicsPage() {
         await dispatch(fetchDeleteClass({ id, access_token: user.access_token })).unwrap()
       } else if (activeTab === TAB_KEYS.SECTIONS) {
         await dispatch(fetchDeleteSection({ id, access_token: user.access_token })).unwrap()
-      } else {
+      } else if (activeTab === TAB_KEYS.ACADEMIC_YEARS) {
         await dispatch(fetchDeleteAcademicYear({ id, access_token: user.access_token })).unwrap()
+      } else if (activeTab === TAB_KEYS.SUBJECTS) {
+        await dispatch(fetchDeleteSubject({ subject_id: id, access_token: user.access_token })).unwrap()
+      } else {
+        throw new Error(`${currentTabLabel} is not configured yet.`)
       }
 
       closeDeletePopup()
@@ -736,6 +887,50 @@ function AcademicsPage() {
       return sectionColumns
     }
 
+    if (isSubjectsTab) {
+      const subjectColumns = [
+        { key: 'name', header: 'Name' },
+        { key: 'description', header: 'Description' },
+      ]
+
+      if (showActionColumn) {
+        subjectColumns.push({
+          key: 'action',
+          header: 'Action',
+          render: (item) => (
+            <div className="role-management-table-actions">
+              {tabPermissions.canEdit && (
+                <button
+                  type="button"
+                  className="role-management-action-btn role-management-action-btn-edit"
+                  onClick={() => handleOpenEdit(item)}
+                >
+                  Edit
+                </button>
+              )}
+              {tabPermissions.canDelete && (
+                <button
+                  type="button"
+                  className="role-management-action-btn role-management-action-btn-delete"
+                  onClick={() => requestDelete(item)}
+                  disabled={actionLoadingId === String(item?.id)}
+                >
+                  {actionLoadingId === String(item?.id) ? 'Deleting...' : 'Delete'}
+                </button>
+              )}
+              {!tabPermissions.canEdit && !tabPermissions.canDelete && <span>-</span>}
+            </div>
+          ),
+        })
+      }
+
+      return subjectColumns
+    }
+
+    if (!isAcademicYearsTab) {
+      return []
+    }
+
     const yearColumns = [
       { key: 'id', header: 'Year Id' },
       { key: 'name', header: 'Name' },
@@ -781,7 +976,7 @@ function AcademicsPage() {
     }
 
     return yearColumns
-  }, [activeTab, actionLoadingId, showActionColumn, tabPermissions.canDelete, tabPermissions.canEdit])
+  }, [actionLoadingId, activeTab, isAcademicYearsTab, isSubjectsTab, showActionColumn, tabPermissions.canDelete, tabPermissions.canEdit])
 
   return (
     <section className="role-management-wrap">
@@ -789,7 +984,7 @@ function AcademicsPage() {
         <div className="role-management-head">
           <div className="role-management-head-row">
             <h2 className="role-management-title">{currentTabLabel}</h2>
-            {canOpenCreatePopup && (
+            {canShowCreateButton && (
               <button
                 type="button"
                 className="role-management-open-create-btn"
@@ -802,31 +997,23 @@ function AcademicsPage() {
         </div>
 
         <div className="role-management-tabs">
-          <button
-            type="button"
-            className={`role-management-tab-btn ${activeTab === TAB_KEYS.ACADEMIC_YEARS ? 'role-management-tab-btn-active' : ''}`}
-            onClick={() => setActiveTab(TAB_KEYS.ACADEMIC_YEARS)}
-          >
-            Academic Year
-          </button>
-          <button
-            type="button"
-            className={`role-management-tab-btn ${activeTab === TAB_KEYS.CLASSES ? 'role-management-tab-btn-active' : ''}`}
-            onClick={() => setActiveTab(TAB_KEYS.CLASSES)}
-          >
-            Classes
-          </button>
-          <button
-            type="button"
-            className={`role-management-tab-btn ${activeTab === TAB_KEYS.SECTIONS ? 'role-management-tab-btn-active' : ''}`}
-            onClick={() => setActiveTab(TAB_KEYS.SECTIONS)}
-          >
-            Sections
-          </button>
+          {availableTabs.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              className={`role-management-tab-btn ${activeTab === tab.key ? 'role-management-tab-btn-active' : ''}`}
+              onClick={() => setActiveTab(tab.key)}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         {isLoading && <p className="role-management-info">{`Loading ${currentTabLabel.toLowerCase()}...`}</p>}
         {error && <p className="role-management-error">{error}</p>}
+        {!isLoading && !error && !isSupportedTab && (
+          <p className="role-management-info">{`${currentTabLabel} tab is available from permissions, but this screen is not configured yet.`}</p>
+        )}
         {!isLoading && !error && tabPermissions.canView && currentTableData.length === 0 && (
           <p className="role-management-info">{`No ${currentTabLabel.toLowerCase()} available.`}</p>
         )}
@@ -863,45 +1050,96 @@ function AcademicsPage() {
               className={`role-management-form ${activeTab === TAB_KEYS.CLASSES ? 'academic-class-form' : ''}`.trim()}
               onSubmit={handleCreate}
             >
-              <div className="role-management-field">
-                <label htmlFor="academic-common-name" className="role-management-label">Name</label>
-                <input
-                  id="academic-common-name"
-                  name="name"
-                  type="text"
-                  className="role-management-input"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  placeholder="Enter name"
-                />
-                {formError.name && <p className="role-management-field-error">{formError.name}</p>}
-              </div>
+              {activeTab !== TAB_KEYS.CLASSES && activeTab !== TAB_KEYS.SUBJECTS && (
+                <div className="role-management-field">
+                  <label htmlFor="academic-common-name" className="role-management-label">Name</label>
+                  <input
+                    id="academic-common-name"
+                    name="name"
+                    type="text"
+                    className="role-management-input"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    placeholder="Enter name"
+                  />
+                  {formError.name && <p className="role-management-field-error">{formError.name}</p>}
+                </div>
+              )}
 
               {activeTab === TAB_KEYS.CLASSES && (
-                <div className="role-management-field">
-                  <label htmlFor="academic-class-section" className="role-management-label">Section</label>
-                  <select
-                    id="academic-class-section"
-                    name="section_id"
-                    className="role-management-select"
-                    value={formData.section_id}
-                    onChange={handleInputChange}
-                  >
-                    <option value="">Select section</option>
-                    {DEFAULT_SECTION_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </select>
-                  {formError.section_id && <p className="role-management-field-error">{formError.section_id}</p>}
-                </div>
+                <>
+                  <div className="role-management-field">
+                    <label htmlFor="academic-class-school" className="role-management-label">School</label>
+                    <select
+                      id="academic-class-school"
+                      name="school_id"
+                      className="role-management-select"
+                      value={formData.school_id}
+                      onChange={handleInputChange}
+                    >
+                      <option value="">Select school</option>
+                      {schoolOptions.map((school) => (
+                        <option key={school.value} value={school.value}>{school.label}</option>
+                      ))}
+                    </select>
+                    {formError.school_id && <p className="role-management-field-error">{formError.school_id}</p>}
+                  </div>
+
+                  <div className="role-management-field">
+                    <label htmlFor="academic-class-name" className="role-management-label">Class Name</label>
+                    <input
+                      id="academic-class-name"
+                      name="class_name"
+                      type="text"
+                      className="role-management-input"
+                      value={formData.class_name}
+                      onChange={handleInputChange}
+                      placeholder="Enter class name"
+                    />
+                    {formError.class_name && <p className="role-management-field-error">{formError.class_name}</p>}
+                  </div>
+
+                  <div className="role-management-field">
+                    <label htmlFor="academic-class-section" className="role-management-label">Section</label>
+                    <select
+                      id="academic-class-section"
+                      name="section_id"
+                      className="role-management-select"
+                      value={formData.section_id}
+                      onChange={handleInputChange}
+                    >
+                      <option value="">Select section</option>
+                      {sectionOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                    {formError.section_id && <p className="role-management-field-error">{formError.section_id}</p>}
+                  </div>
+
+                  <div className="role-management-field">
+                    <label htmlFor="academic-class-academic-year" className="role-management-label">Academic Year</label>
+                    <select
+                      id="academic-class-academic-year"
+                      name="academic_year_id"
+                      className="role-management-select"
+                      value={formData.academic_year_id}
+                      onChange={handleInputChange}
+                    >
+                      <option value="">Select academic year</option>
+                      {academicYearOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                    {formError.academic_year_id && <p className="role-management-field-error">{formError.academic_year_id}</p>}
+                  </div>
+                </>
               )}
 
               {activeTab === TAB_KEYS.CLASSES && (
                 <div className="academic-class-builder">
                   <div className="academic-class-builder-head">
                     <div>
-                      <p className="academic-class-builder-title">Class Assignments</p>
-                      {/* <p className="academic-class-builder-subtitle">Choose subject, section, staff category, and staff name for each row.</p> */}
+                      <p className="academic-class-builder-title">Subjects</p>
                     </div>
                     <button
                       type="button"
@@ -914,7 +1152,6 @@ function AcademicsPage() {
 
                   <div className="academic-class-assignment-grid academic-class-assignment-grid-head" aria-hidden="true">
                     <span>Subject</span>
-                    <span>Staff Category</span>
                     <span>Staff Name</span>
                     <span>Action</span>
                   </div>
@@ -924,41 +1161,25 @@ function AcademicsPage() {
                       <div key={row.id} className="academic-class-assignment-grid">
                         <select
                           className="role-management-select"
-                          value={row.subject}
-                          onChange={(event) => handleClassAssignmentChange(row.id, 'subject', event.target.value)}
+                          value={row.subject_id}
+                          onChange={(event) => handleClassAssignmentChange(row.id, 'subject_id', event.target.value)}
                           aria-label={`Subject row ${index + 1}`}
                         >
                           <option value="">Select subject</option>
-                          {DEFAULT_SUBJECT_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>{option.label}</option>
+                          {DEFAULT_SUBJECT_OPTIONS.map((subject) => (
+                            <option key={subject.value} value={subject.value}>{subject.label}</option>
                           ))}
                         </select>
 
                         <select
                           className="role-management-select"
-                          value={row.staff_category}
-                          onChange={(event) => handleClassAssignmentChange(row.id, 'staff_category', event.target.value)}
-                          aria-label={`Staff category row ${index + 1}`}
+                          value={row.teacher_id}
+                          onChange={(event) => handleClassAssignmentChange(row.id, 'teacher_id', event.target.value)}
+                          aria-label={`Teacher row ${index + 1}`}
                         >
-                          <option value="">Select staff category</option>
-                          {DEFAULT_STAFF_OPTIONS.map((staff) => (
-                            <option key={staff.value} value={staff.value}>
-                              {staff.label}
-                            </option>
-                          ))}
-                        </select>
-
-                        <select
-                          className="role-management-select"
-                          value={row.staff_name}
-                          onChange={(event) => handleClassAssignmentChange(row.id, 'staff_name', event.target.value)}
-                          aria-label={`Staff name row ${index + 1}`}
-                        >
-                          <option value="">Select staff name</option>
-                          {DEFAULT_STAFF_NAME_OPTIONS.map((staff) => (
-                            <option key={staff.value} value={staff.value}>
-                              {staff.label}
-                            </option>
+                          <option value="">Select Staff Name</option>
+                          {teacherOptions.map((teacher) => (
+                            <option key={teacher.value} value={teacher.value}>{teacher.label}</option>
                           ))}
                         </select>
 
@@ -981,8 +1202,107 @@ function AcademicsPage() {
                 </div>
               )}
 
+              {activeTab === TAB_KEYS.SUBJECTS && (
+                <>
+                  <div className="role-management-field">
+                    <label htmlFor="academic-subject-class" className="role-management-label">Class</label>
+                    <select
+                      id="academic-subject-class"
+                      name="class_id"
+                      className="role-management-select"
+                      value={formData.class_id}
+                      onChange={handleInputChange}
+                    >
+                      <option value="">Select class</option>
+                      {classesData.map((item, index) => (
+                        <option key={item?.id ?? index} value={String(item?.id ?? '')}>
+                          {item?.name || item?.class_name || `Class ${index + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                    {formError.class_id && <p className="role-management-field-error">{formError.class_id}</p>}
+                  </div>
+
+                  <div className="role-management-field">
+                    <label htmlFor="academic-subject-section" className="role-management-label">Section</label>
+                    <select
+                      id="academic-subject-section"
+                      name="section_id"
+                      className="role-management-select"
+                      value={formData.section_id}
+                      onChange={handleInputChange}
+                    >
+                      <option value="">Select section</option>
+                      {sectionOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                    {formError.section_id && <p className="role-management-field-error">{formError.section_id}</p>}
+                  </div>
+
+                  <div className="role-management-field">
+                    <label htmlFor="academic-subject-name" className="role-management-label">Name</label>
+                    <input
+                      id="academic-subject-name"
+                      name="name"
+                      type="text"
+                      className="role-management-input"
+                      value={formData.name}
+                      onChange={handleInputChange}
+                      placeholder="Enter subject name"
+                    />
+                    {formError.name && <p className="role-management-field-error">{formError.name}</p>}
+                  </div>
+
+                  <div className="role-management-field">
+                    <label htmlFor="academic-subject-code" className="role-management-label">Code</label>
+                    <input
+                      id="academic-subject-code"
+                      name="code"
+                      type="text"
+                      className="role-management-input"
+                      value={formData.code}
+                      onChange={handleInputChange}
+                      placeholder="Enter subject code"
+                    />
+                    {formError.code && <p className="role-management-field-error">{formError.code}</p>}
+                  </div>
+
+                  <div className="role-management-field" style={{ gridColumn: '1 / -1' }}>
+                    <label htmlFor="academic-subject-description" className="role-management-label">Description</label>
+                    <textarea
+                      id="academic-subject-description"
+                      name="description"
+                      className="role-management-input"
+                      value={formData.description}
+                      onChange={handleInputChange}
+                      placeholder="Enter description"
+                      rows={4}
+                    />
+                    {formError.description && <p className="role-management-field-error">{formError.description}</p>}
+                  </div>
+                </>
+              )}
+
               {activeTab === TAB_KEYS.ACADEMIC_YEARS && (
                 <>
+                  <div className="role-management-field">
+                    <label htmlFor="academic-school-id" className="role-management-label">School</label>
+                    <select
+                      id="academic-school-id"
+                      name="school_id"
+                      className="role-management-select"
+                      value={formData.school_id}
+                      onChange={handleInputChange}
+                    >
+                      <option value="">Select school</option>
+                      {schoolOptions.map((school) => (
+                        <option key={school.value} value={school.value}>{school.label}</option>
+                      ))}
+                    </select>
+                    {formError.school_id && <p className="role-management-field-error">{formError.school_id}</p>}
+                  </div>
+
                   <div className="role-management-field">
                     <label htmlFor="academic-year-input" className="role-management-label">Academic Year</label>
                     <div style={{ display: 'flex', gap: '8px' }}>
@@ -1063,18 +1383,38 @@ function AcademicsPage() {
               )}
 
               {activeTab === TAB_KEYS.SECTIONS && (
-                <div className="role-management-field">
-                  <label htmlFor="academic-class_id" className="role-management-label">Class Id</label>
-                  <input
-                    id="academic-class_id"
-                    name="class_id"
-                    type="number"
-                    className="role-management-input"
-                    value={formData.class_id}
-                    onChange={handleInputChange}
-                  />
-                  {formError.class_id && <p className="role-management-field-error">{formError.class_id}</p>}
-                </div>
+                <>
+                  <div className="role-management-field">
+                    <label htmlFor="academic-section-school" className="role-management-label">School</label>
+                    <select
+                      id="academic-section-school"
+                      name="school_id"
+                      className="role-management-select"
+                      value={formData.school_id}
+                      onChange={handleInputChange}
+                    >
+                      <option value="">Select school</option>
+                      {schoolOptions.map((school) => (
+                        <option key={school.value} value={school.value}>{school.label}</option>
+                      ))}
+                    </select>
+                    {formError.school_id && <p className="role-management-field-error">{formError.school_id}</p>}
+                  </div>
+
+                  <div className="role-management-field">
+                    <label htmlFor="academic-section-code" className="role-management-label">Code</label>
+                    <input
+                      id="academic-section-code"
+                      name="code"
+                      type="text"
+                      className="role-management-input"
+                      value={formData.code}
+                      onChange={handleInputChange}
+                      placeholder="Enter section code"
+                    />
+                    {formError.code && <p className="role-management-field-error">{formError.code}</p>}
+                  </div>
+                </>
               )}
 
               <div className="role-management-form-actions">
@@ -1105,6 +1445,7 @@ function AcademicsPage() {
           >
             <h3 id="edit-academic-tab-title" className="custom-popup-title">{`Edit ${currentEntityLabel}`}</h3>
             <form className="role-management-form" onSubmit={handleUpdate}>
+              {activeTab !== TAB_KEYS.SUBJECTS && (
               <div className="role-management-field">
                 <label htmlFor="edit-academic-common-name" className="role-management-label">Name</label>
                 <input
@@ -1118,6 +1459,7 @@ function AcademicsPage() {
                 />
                 {formError.name && <p className="role-management-field-error">{formError.name}</p>}
               </div>
+              )}
 
               {activeTab === TAB_KEYS.ACADEMIC_YEARS && (
                 <>
@@ -1213,6 +1555,88 @@ function AcademicsPage() {
                   />
                   {formError.class_id && <p className="role-management-field-error">{formError.class_id}</p>}
                 </div>
+              )}
+
+              {activeTab === TAB_KEYS.SUBJECTS && (
+                <>
+                  <div className="role-management-field">
+                    <label htmlFor="edit-subject-class_id" className="role-management-label">Class</label>
+                    <select
+                      id="edit-subject-class_id"
+                      name="class_id"
+                      className="role-management-select"
+                      value={editFormData.class_id}
+                      onChange={handleEditInputChange}
+                    >
+                      <option value="">Select class</option>
+                      {classesData.map((item, index) => (
+                        <option key={item?.id ?? index} value={String(item?.id ?? '')}>
+                          {item?.name || item?.class_name || `Class ${index + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                    {formError.class_id && <p className="role-management-field-error">{formError.class_id}</p>}
+                  </div>
+
+                  <div className="role-management-field">
+                    <label htmlFor="edit-subject-section_id" className="role-management-label">Section</label>
+                    <select
+                      id="edit-subject-section_id"
+                      name="section_id"
+                      className="role-management-select"
+                      value={editFormData.section_id}
+                      onChange={handleEditInputChange}
+                    >
+                      <option value="">Select section</option>
+                      {sectionOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                    {formError.section_id && <p className="role-management-field-error">{formError.section_id}</p>}
+                  </div>
+
+                  <div className="role-management-field">
+                    <label htmlFor="edit-subject-name" className="role-management-label">Name</label>
+                    <input
+                      id="edit-subject-name"
+                      name="name"
+                      type="text"
+                      className="role-management-input"
+                      value={editFormData.name}
+                      onChange={handleEditInputChange}
+                      placeholder="Enter subject name"
+                    />
+                    {formError.name && <p className="role-management-field-error">{formError.name}</p>}
+                  </div>
+
+                  <div className="role-management-field">
+                    <label htmlFor="edit-subject-code" className="role-management-label">Code</label>
+                    <input
+                      id="edit-subject-code"
+                      name="code"
+                      type="text"
+                      className="role-management-input"
+                      value={editFormData.code}
+                      onChange={handleEditInputChange}
+                      placeholder="Enter subject code"
+                    />
+                    {formError.code && <p className="role-management-field-error">{formError.code}</p>}
+                  </div>
+
+                  <div className="role-management-field">
+                    <label htmlFor="edit-subject-description" className="role-management-label">Description</label>
+                    <textarea
+                      id="edit-subject-description"
+                      name="description"
+                      className="role-management-input"
+                      value={editFormData.description}
+                      onChange={handleEditInputChange}
+                      placeholder="Enter description"
+                      rows={4}
+                    />
+                    {formError.description && <p className="role-management-field-error">{formError.description}</p>}
+                  </div>
+                </>
               )}
 
               <div className="role-management-form-actions">

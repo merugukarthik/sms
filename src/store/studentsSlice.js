@@ -7,11 +7,47 @@ const initialState = {
   error: null,
 }
 
+const toReadableError = (value) => {
+  if (typeof value === 'string' && value.trim()) {
+    return value
+  }
+
+  if (Array.isArray(value)) {
+    const messages = value
+      .map((item) => toReadableError(item))
+      .filter(Boolean)
+
+    return messages.length > 0 ? messages.join(', ') : ''
+  }
+
+  if (value && typeof value === 'object') {
+    if (typeof value.msg === 'string' && value.msg.trim()) {
+      return value.msg
+    }
+
+    if (typeof value.message === 'string' && value.message.trim()) {
+      return value.message
+    }
+
+    if (typeof value.detail === 'string' && value.detail.trim()) {
+      return value.detail
+    }
+  }
+
+  return ''
+}
+
 const getErrorMessage = async (response, fallbackText = 'Request failed') => {
   try {
     const data = await response.json()
-    if (typeof data?.message === 'string' && data.message.trim()) {
-      return data.message
+
+    const errorMessage = toReadableError(data?.message)
+      || toReadableError(data?.detail)
+      || toReadableError(data?.error)
+      || toReadableError(data)
+
+    if (errorMessage) {
+      return errorMessage
     }
   } catch {
     // Fall back to response status when body is not JSON.
@@ -93,7 +129,6 @@ export const fetchCreateStudent = createAsyncThunk(
           admission_no
         }),
       })
-      console.log('student creating resp:- ', response)
       if (!response.ok) {
         return rejectWithValue(await getErrorMessage(response, 'Student creation failed'))
       }
@@ -179,6 +214,35 @@ export const fetchCreateStudentAttendance = createAsyncThunk(
   },
 )
 
+export const fetchPromoteStudent = createAsyncThunk(
+  'students/fetchPromoteStudent',
+  async ({ access_token, student_id, remarks }, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/students/promote`, {
+        method: 'POST',
+        headers: {
+          accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + access_token,
+        },
+        body: JSON.stringify({
+          student_id: Number(student_id),
+          remarks,
+        }),
+      })
+
+      if (!response.ok) {
+        return rejectWithValue(await getErrorMessage(response, 'Student promotion failed'))
+      }
+
+      const data = await response.json().catch(() => ({}))
+      return data
+    } catch {
+      return rejectWithValue('Unable to promote student. Please try again.')
+    }
+  },
+)
+
 const studentsSlice = createSlice({
   name: 'students',
   initialState,
@@ -217,6 +281,17 @@ const studentsSlice = createSlice({
       .addCase(fetchCreateStudentAttendance.rejected, (state, action) => {
         state.status = 'failed'
         state.error = action.payload || action.error.message || 'Student attendance create request failed.'
+      })
+      .addCase(fetchPromoteStudent.pending, (state) => {
+        state.status = 'loading'
+        state.error = null
+      })
+      .addCase(fetchPromoteStudent.fulfilled, (state) => {
+        state.status = 'succeeded'
+      })
+      .addCase(fetchPromoteStudent.rejected, (state, action) => {
+        state.status = 'failed'
+        state.error = action.payload || action.error.message || 'Student promote request failed.'
       })
   },
 })

@@ -1,15 +1,27 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { useNavigate } from 'react-router-dom'
+import CustomPopup from '../components/CustomPopup'
 import CustomTable from '../components/CustomTable'
-import { fetchCreateStudent, fetchStudentsList } from '../store/studentsSlice'
+import { fetchCreateFinanceAssignment } from '../store/feesSlice'
+import { fetchCreateStudent, fetchPromoteStudent, fetchStudentsList } from '../store/studentsSlice'
+import { getCrudPermissions } from '../utils/permissions'
+
+const FEE_TYPE_OPTIONS = [
+  { value: '1', label: 'Tuition Fee' },
+  { value: '2', label: 'Transport Fee' },
+  { value: '3', label: 'Hostel Fee' },
+  { value: '4', label: 'Exam Fee' },
+]
 
 function StudentPage() {
   const sanitizePhoneValue = (value) => String(value ?? '').replace(/\D/g, '').slice(0, 10)
 
   const dispatch = useDispatch()
-  const navigate = useNavigate()
   const { user } = useSelector((state) => state.auth)
+  const permissions = useMemo(
+    () => getCrudPermissions(user, { moduleMatchers: ['student'] }),
+    [user],
+  )
   console.log('school id:- ', user.user.school_id)
 
   const [studentsData, setStudentsData] = useState([])
@@ -22,8 +34,16 @@ function StudentPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSavingFee, setIsSavingFee] = useState(false)
+  const [isPromoting, setIsPromoting] = useState(false)
   const [isCreatePopupOpen, setIsCreatePopupOpen] = useState(false)
+  const [isAddFeePopupOpen, setIsAddFeePopupOpen] = useState(false)
+  const [isPromotePopupOpen, setIsPromotePopupOpen] = useState(false)
+  const [selectedStudentForFee, setSelectedStudentForFee] = useState(null)
+  const [selectedStudentForPromotion, setSelectedStudentForPromotion] = useState(null)
   const [formError, setFormError] = useState({})
+  const [feeFormError, setFeeFormError] = useState({})
+  const [promoteFormError, setPromoteFormError] = useState({})
   const [message, setMessage] = useState('')
   const [formData, setFormData] = useState({
     first_name: '',
@@ -40,7 +60,23 @@ function StudentPage() {
     section_id: 0,
     academic_year_id: 0,
     admission_date: '',
-    admission_no:''
+    admission_no: ''
+  })
+  const [feeFormData, setFeeFormData] = useState({
+    amount: '',
+    fee_type_id: '',
+    due_date: '',
+    paid_amount: '',
+    paid_date: '',
+    payment_mode: 'cash',
+    status: 'success',
+    academic_year: '',
+    month: 'march',
+    remarks: '',
+  })
+  const [promoteFormData, setPromoteFormData] = useState({
+    student_id: '',
+    remarks: '',
   })
 
   const refreshStudents = async () => {
@@ -103,12 +139,12 @@ function StudentPage() {
     if (!values.parent_phone.trim()) nextErrors.parent_phone = 'Parent phone is required.'
     if (values.parent_phone && !/^\d{1,10}$/.test(values.parent_phone)) nextErrors.parent_phone = 'Parent phone number must be up to 10 digits.'
     if (!values.parent_email.trim()) nextErrors.parent_email = 'Parent email is required.'
-      if (!values.class_id && values.class_id !== 0) nextErrors.section_id = 'Section id is required.'
+    if (!values.class_id && values.class_id !== 0) nextErrors.section_id = 'Section id is required.'
     if (!values.section_id && values.section_id !== 0) nextErrors.class_id = 'Class id is required.'
     if (!values.academic_year_id && values.academic_year_id !== 0) {
       nextErrors.academic_year_id = 'Academic year id is required.'
     }
-     if (!values.admission_no) nextErrors.admission_no = 'Admission number is required.'
+    if (!values.admission_no) nextErrors.admission_no = 'Admission number is required.'
     if (!values.admission_date) nextErrors.admission_date = 'Admission date is required.'
     return nextErrors
   }
@@ -135,7 +171,7 @@ function StudentPage() {
       section_id: 0,
       academic_year_id: 0,
       admission_date: '',
-      admission_no:''
+      admission_no: ''
     })
     setFormError({})
   }
@@ -189,12 +225,183 @@ function StudentPage() {
     }
   }
 
-  const handleMakePayment = (studentId) => {
-    if (!studentId) {
-      navigate('/app/fees')
+  const openAddFeePopup = (student) => {
+    setSelectedStudentForFee(student)
+    setFeeFormData({
+      amount: '',
+      fee_type_id: '',
+      due_date: '',
+      paid_amount: '',
+      paid_date: '',
+      payment_mode: 'cash',
+      status: 'success',
+      academic_year: '',
+      month: 'march',
+      remarks: '',
+    })
+    setFeeFormError({})
+    setMessage('')
+    setIsAddFeePopupOpen(true)
+  }
+
+  const closeAddFeePopup = () => {
+    setIsAddFeePopupOpen(false)
+    setSelectedStudentForFee(null)
+    setFeeFormData({
+      amount: '',
+      fee_type_id: '',
+      due_date: '',
+      paid_amount: '',
+      paid_date: '',
+      payment_mode: 'cash',
+      status: 'success',
+      academic_year: '',
+      month: 'march',
+      remarks: '',
+    })
+    setFeeFormError({})
+  }
+
+  const handleFeeInputChange = (event) => {
+    const { name, value, type } = event.target
+    setFeeFormData((prev) => ({
+      ...prev,
+      [name]: type === 'number' ? Number(value) : value,
+    }))
+    setFeeFormError((prev) => ({ ...prev, [name]: '', submit: '' }))
+  }
+
+  const handleAddFee = async (event) => {
+    event.preventDefault()
+
+    const nextErrors = {}
+    if (!String(feeFormData.amount ?? '').trim()) nextErrors.amount = 'Amount is required.'
+    else if (Number(feeFormData.amount) <= 0) nextErrors.amount = 'Amount must be greater than 0.'
+    if (!String(feeFormData.fee_type_id ?? '').trim()) nextErrors.fee_type_id = 'Fee type is required.'
+    if (!String(feeFormData.due_date ?? '').trim()) nextErrors.due_date = 'Due date is required.'
+    if (!String(feeFormData.paid_amount ?? '').trim()) nextErrors.paid_amount = 'Paid amount is required.'
+    else if (Number(feeFormData.paid_amount) < 0) nextErrors.paid_amount = 'Paid amount cannot be negative.'
+    if (!String(feeFormData.paid_date ?? '').trim()) nextErrors.paid_date = 'Paid date is required.'
+    if (!String(feeFormData.payment_mode ?? '').trim()) nextErrors.payment_mode = 'Payment mode is required.'
+    if (!String(feeFormData.status ?? '').trim()) nextErrors.status = 'Status is required.'
+    if (!String(feeFormData.academic_year ?? '').trim()) nextErrors.academic_year = 'Academic year is required.'
+    if (!String(feeFormData.month ?? '').trim()) nextErrors.month = 'Month is required.'
+    if (!String(feeFormData.remarks ?? '').trim()) nextErrors.remarks = 'Remarks are required.'
+
+    if (Object.keys(nextErrors).length > 0) {
+      setFeeFormError(nextErrors)
       return
     }
-    navigate(`/app/fees?studentId=${studentId}`)
+
+    if (!user?.access_token) {
+      setFeeFormError({ submit: 'Missing access token. Please login again.' })
+      return
+    }
+
+    if (!selectedStudentForFee?.id) {
+      setFeeFormError({ submit: 'Student is required.' })
+      return
+    }
+
+    setIsSavingFee(true)
+    try {
+      await dispatch(fetchCreateFinanceAssignment({
+        student_id: Number(selectedStudentForFee.id),
+        school_id: Number(user?.user?.school_id ?? user?.school_id ?? 0),
+        amount: Number(feeFormData.amount),
+        fee_type_id: Number(feeFormData.fee_type_id),
+        due_date: feeFormData.due_date,
+        paid_amount: Number(feeFormData.paid_amount),
+        paid_date: feeFormData.paid_date,
+        payment_mode: feeFormData.payment_mode,
+        status: feeFormData.status,
+        academic_year: feeFormData.academic_year,
+        month: feeFormData.month,
+        remarks: feeFormData.remarks,
+        access_token: user.access_token,
+      })).unwrap()
+
+      setMessage(`Fee added for ${selectedStudentForFee?.first_name || 'student'}${selectedStudentForFee?.last_name ? ` ${selectedStudentForFee.last_name}` : ''}.`)
+      closeAddFeePopup()
+    } catch (err) {
+      setFeeFormError({
+        submit: typeof err === 'string' ? err : 'Failed to add fee.',
+      })
+    } finally {
+      setIsSavingFee(false)
+    }
+  }
+
+  const handlePromoteStudent = (student) => {
+    const studentId = student?.id
+    if (!studentId) return
+
+    setSelectedStudentForPromotion(student)
+    setPromoteFormData({
+      student_id: String(studentId),
+      remarks: '',
+    })
+    setPromoteFormError({})
+    setMessage('')
+    setIsPromotePopupOpen(true)
+  }
+
+  const closePromotePopup = () => {
+    setIsPromotePopupOpen(false)
+    setSelectedStudentForPromotion(null)
+    setPromoteFormData({
+      student_id: '',
+      remarks: '',
+    })
+    setPromoteFormError({})
+  }
+
+  const handlePromoteInputChange = (event) => {
+    const { name, value } = event.target
+    setPromoteFormData((prev) => ({
+      ...prev,
+      [name]: name === 'student_id' ? value.replace(/\D/g, '') : value,
+    }))
+    setPromoteFormError((prev) => ({ ...prev, [name]: '', submit: '' }))
+  }
+
+  const handleSubmitPromoteStudent = async (event) => {
+    event.preventDefault()
+
+    const nextErrors = {}
+    if (!String(promoteFormData.student_id || '').trim()) nextErrors.student_id = 'Student id is required.'
+    if (!String(promoteFormData.remarks || '').trim()) nextErrors.remarks = 'Remarks are required.'
+
+    if (Object.keys(nextErrors).length > 0) {
+      setPromoteFormError(nextErrors)
+      return
+    }
+
+    if (!user?.access_token) {
+      setPromoteFormError({ submit: 'Missing access token. Please login again.' })
+      return
+    }
+
+    setIsPromoting(true)
+    try {
+     const response =  await dispatch(fetchPromoteStudent({
+        student_id: Number(promoteFormData.student_id),
+        remarks: String(promoteFormData.remarks || '').trim(),
+        access_token: user.access_token,
+      })).unwrap()
+
+      const displayName = `${selectedStudentForPromotion?.first_name || 'student'}${selectedStudentForPromotion?.last_name ? ` ${selectedStudentForPromotion.last_name}` : ''}`
+      closePromotePopup()
+      alert(`Student promoted successfully for ${displayName}.`)
+      await refreshStudents()
+    } catch (err) {
+       alert(err)
+      setPromoteFormError({
+        submit: typeof err === 'string' ? err : 'Failed to promote student.',
+      })
+    } finally {
+      setIsPromoting(false)
+    }
   }
 
   const studentColumns = [
@@ -205,22 +412,31 @@ function StudentPage() {
       header: 'Name',
       render: (student) => `${student?.first_name || ''} ${student?.last_name || ''}`.trim() || '-',
     },
-    { key: 'parent_phone', header: 'Phone' },
+    { key: 'phone', header: 'Phone' },
     { key: 'gender', header: 'Gender' },
-    { key: 'class_name', header: 'Class' },
-    { key: 'section_name', header: 'Section' },
+    { key: 'class_id', header: 'Class Id' },
+    { key: 'section_id', header: 'Section Id' },
     { key: 'status', header: 'Status' },
     {
       key: 'actions',
       header: 'Actions',
       render: (student) => (
-        <button
-          type="button"
-          className="role-management-action-btn role-management-action-btn-edit"
-          onClick={() => handleMakePayment(student?.id)}
-        >
-          Make Payment
-        </button>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="role-management-action-btn role-management-action-btn-edit"
+            onClick={() => openAddFeePopup(student)}
+          >
+            Add Fee
+          </button>
+          <button
+            type="button"
+            className="role-management-action-btn role-management-action-btn-edit"
+            onClick={() => handlePromoteStudent(student)}
+          >
+            Promote
+          </button>
+        </div>
       ),
     },
   ]
@@ -231,13 +447,15 @@ function StudentPage() {
         <div className="role-management-head">
           <div className="role-management-head-row">
             <h2 className="role-management-title">Students</h2>
-            <button
-              type="button"
-              className="role-management-open-create-btn"
-              onClick={openCreatePopup}
-            >
-              Create Student
-            </button>
+            {permissions.canCreate && (
+              <button
+                type="button"
+                className="role-management-open-create-btn"
+                onClick={openCreatePopup}
+              >
+                Create Student
+              </button>
+            )}
           </div>
         </div>
 
@@ -266,7 +484,7 @@ function StudentPage() {
         {message && <p className="role-management-success">{message}</p>}
       </div>
 
-      {isCreatePopupOpen && (
+      {isCreatePopupOpen && permissions.canCreate && (
         <div className="custom-popup-backdrop" role="presentation">
           <div
             className="custom-popup role-management-create-popup student-create-popup"
@@ -470,7 +688,7 @@ function StudentPage() {
                 {formError.admission_date && <p className="role-management-field-error">{formError.admission_date}</p>}
               </div>
 
-               <div className="role-management-field">
+              <div className="role-management-field">
                 <label htmlFor="student-admission_number" className="role-management-label">Admission Number</label>
                 <input
                   id="student-admission_number"
@@ -499,6 +717,226 @@ function StudentPage() {
           </div>
         </div>
       )}
+      <CustomPopup
+        isOpen={isAddFeePopupOpen}
+        title="Add Fee"
+        titleId="student-add-fee-title"
+        popupClassName="role-management-create-popup"
+        onClose={closeAddFeePopup}
+      >
+        <form className="role-management-form" onSubmit={handleAddFee}>
+          <div className="role-management-field">
+            <label htmlFor="student-fee-amount" className="role-management-label">Amount</label>
+            <input
+              id="student-fee-amount"
+              name="amount"
+              type="number"
+              className="role-management-input"
+              value={feeFormData.amount}
+              onChange={handleFeeInputChange}
+              min="1"
+              placeholder="Enter amount"
+            />
+            {feeFormError.amount && <p className="role-management-field-error">{feeFormError.amount}</p>}
+          </div>
+
+          <div className="role-management-field">
+            <label htmlFor="student-fee-type" className="role-management-label">Fee Type</label>
+            <select
+              id="student-fee-type"
+              name="fee_type_id"
+              className="role-management-select"
+              value={feeFormData.fee_type_id}
+              onChange={handleFeeInputChange}
+            >
+              <option value="">Select fee type</option>
+              {FEE_TYPE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+            {feeFormError.fee_type_id && <p className="role-management-field-error">{feeFormError.fee_type_id}</p>}
+          </div>
+
+          <div className="role-management-field">
+            <label htmlFor="student-fee-due-date" className="role-management-label">Due Date</label>
+            <input
+              id="student-fee-due-date"
+              name="due_date"
+              type="date"
+              className="role-management-input"
+              value={feeFormData.due_date}
+              onChange={handleFeeInputChange}
+            />
+            {feeFormError.due_date && <p className="role-management-field-error">{feeFormError.due_date}</p>}
+          </div>
+
+          <div className="role-management-field">
+            <label htmlFor="student-fee-paid-amount" className="role-management-label">Paid Amount</label>
+            <input
+              id="student-fee-paid-amount"
+              name="paid_amount"
+              type="number"
+              className="role-management-input"
+              value={feeFormData.paid_amount}
+              onChange={handleFeeInputChange}
+              min="0"
+              placeholder="Enter paid amount"
+            />
+            {feeFormError.paid_amount && <p className="role-management-field-error">{feeFormError.paid_amount}</p>}
+          </div>
+
+          <div className="role-management-field">
+            <label htmlFor="student-fee-paid-date" className="role-management-label">Paid Date</label>
+            <input
+              id="student-fee-paid-date"
+              name="paid_date"
+              type="date"
+              className="role-management-input"
+              value={feeFormData.paid_date}
+              onChange={handleFeeInputChange}
+            />
+            {feeFormError.paid_date && <p className="role-management-field-error">{feeFormError.paid_date}</p>}
+          </div>
+
+          <div className="role-management-field">
+            <label htmlFor="student-fee-payment-mode" className="role-management-label">Payment Mode</label>
+            <input
+              id="student-fee-payment-mode"
+              name="payment_mode"
+              type="text"
+              className="role-management-input"
+              value={feeFormData.payment_mode}
+              onChange={handleFeeInputChange}
+              placeholder="Enter payment mode"
+            />
+            {feeFormError.payment_mode && <p className="role-management-field-error">{feeFormError.payment_mode}</p>}
+          </div>
+
+          <div className="role-management-field">
+            <label htmlFor="student-fee-status" className="role-management-label">Status</label>
+            <input
+              id="student-fee-status"
+              name="status"
+              type="text"
+              className="role-management-input"
+              value={feeFormData.status}
+              onChange={handleFeeInputChange}
+              placeholder="Enter status"
+            />
+            {feeFormError.status && <p className="role-management-field-error">{feeFormError.status}</p>}
+          </div>
+
+          <div className="role-management-field">
+            <label htmlFor="student-fee-academic-year" className="role-management-label">Academic Year</label>
+            <input
+              id="student-fee-academic-year"
+              name="academic_year"
+              type="text"
+              className="role-management-input"
+              value={feeFormData.academic_year}
+              onChange={handleFeeInputChange}
+              placeholder="Enter academic year"
+            />
+            {feeFormError.academic_year && <p className="role-management-field-error">{feeFormError.academic_year}</p>}
+          </div>
+
+          <div className="role-management-field">
+            <label htmlFor="student-fee-month" className="role-management-label">Month</label>
+            <input
+              id="student-fee-month"
+              name="month"
+              type="text"
+              className="role-management-input"
+              value={feeFormData.month}
+              onChange={handleFeeInputChange}
+              placeholder="Enter month"
+            />
+            {feeFormError.month && <p className="role-management-field-error">{feeFormError.month}</p>}
+          </div>
+
+          <div className="role-management-field">
+            <label htmlFor="student-fee-remarks" className="role-management-label">Remarks</label>
+            <input
+              id="student-fee-remarks"
+              name="remarks"
+              type="text"
+              className="role-management-input"
+              value={feeFormData.remarks}
+              onChange={handleFeeInputChange}
+              placeholder="Enter remarks"
+            />
+            {feeFormError.remarks && <p className="role-management-field-error">{feeFormError.remarks}</p>}
+          </div>
+
+          <div className="role-management-form-actions">
+            <button type="submit" className="role-management-create-btn" disabled={isSavingFee}>
+              {isSavingFee ? 'Saving...' : 'Save Fee'}
+            </button>
+            <button
+              type="button"
+              className="role-management-cancel-btn"
+              onClick={closeAddFeePopup}
+              disabled={isSavingFee}
+            >
+              Cancel
+            </button>
+          </div>
+          {feeFormError.submit && <p className="role-management-field-error">{feeFormError.submit}</p>}
+        </form>
+      </CustomPopup>
+      <CustomPopup
+        isOpen={isPromotePopupOpen}
+        title="Promote Student"
+        titleId="student-promote-title"
+        popupClassName="role-management-create-popup"
+        onClose={closePromotePopup}
+      >
+        <form className="role-management-form" onSubmit={handleSubmitPromoteStudent}>
+          <div className="role-management-field">
+            <label htmlFor="student-promote-id" className="role-management-label">Student Id</label>
+            <input
+              id="student-promote-id"
+              name="student_id"
+              type="text"
+              className="role-management-input"
+              value={promoteFormData.student_id}
+              onChange={handlePromoteInputChange}
+              inputMode="numeric"
+              placeholder="Enter student id"
+            />
+            {promoteFormError.student_id && <p className="role-management-field-error">{promoteFormError.student_id}</p>}
+          </div>
+
+          <div className="role-management-field">
+            <label htmlFor="student-promote-remarks" className="role-management-label">Remarks</label>
+            <textarea
+              id="student-promote-remarks"
+              name="remarks"
+              className="role-management-input"
+              value={promoteFormData.remarks}
+              onChange={handlePromoteInputChange}
+              rows={4}
+              placeholder="Enter remarks"
+            />
+            {promoteFormError.remarks && <p className="role-management-field-error">{promoteFormError.remarks}</p>}
+          </div>
+
+          <div className="role-management-form-actions">
+            <button type="submit" className="role-management-create-btn" disabled={isPromoting}>
+              {isPromoting ? 'Promoting...' : 'Promote Student'}
+            </button>
+            <button
+              type="button"
+              className="role-management-cancel-btn"
+              onClick={closePromotePopup}
+              disabled={isPromoting}
+            >
+              Cancel
+            </button>
+          </div>
+          {promoteFormError.submit && <p className="role-management-field-error">{promoteFormError.submit}</p>}
+        </form>
+      </CustomPopup>
     </section>
   )
 }

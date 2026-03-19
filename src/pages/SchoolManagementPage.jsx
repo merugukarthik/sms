@@ -5,6 +5,7 @@ import CustomTable from '../components/CustomTable'
 import { fetchOrganizations } from '../store/organizationsSlice'
 import { rolesManagement } from '../store/roleSlice'
 import { createSchool, fetchSchools } from '../store/schoolsSlice'
+import { getCrudPermissions } from '../utils/permissions'
 
 const normalizeCollection = (response, key) => (
   Array.isArray(response)
@@ -85,6 +86,10 @@ function SchoolManagementPage() {
   const authUser = useSelector((state) => state.auth.user)
   const currentUser = authUser?.user ?? authUser
   const accessToken = authUser?.access_token ?? authUser?.token ?? ''
+  const permissions = useMemo(
+    () => getCrudPermissions(authUser, { moduleMatchers: ['school'] }),
+    [authUser],
+  )
 
   const [schools, setSchools] = useState([])
   const [organizations, setOrganizations] = useState([])
@@ -297,13 +302,15 @@ function SchoolManagementPage() {
         <div className="role-management-head">
           <div className="role-management-head-row">
             <h2 className="role-management-title">School Management</h2>
-            <button
-              type="button"
-              className="role-management-open-create-btn"
-              onClick={openCreateModal}
-            >
-              Create School
-            </button>
+            {permissions.canCreate && (
+              <button
+                type="button"
+                className="role-management-open-create-btn"
+                onClick={openCreateModal}
+              >
+                Create School
+              </button>
+            )}
           </div>
         </div>
 
@@ -329,6 +336,7 @@ function SchoolManagementPage() {
         popupClassName="school-create-popup"
         onClose={closeCreateModal}
       >
+        {permissions.canCreate && (
         <form className="role-management-form role-management-form-two-col" onSubmit={handleSubmit}>
           <div className="organization-form-section">
             <div className="organization-form-section-title">School Information</div>
@@ -547,6 +555,7 @@ function SchoolManagementPage() {
             </button>
           </div>
         </form>
+        )}
       </CustomPopup>
     </section>
   )

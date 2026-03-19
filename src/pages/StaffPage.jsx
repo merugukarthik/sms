@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import {
   fetchCreateStaffAttendance,
@@ -11,6 +11,7 @@ import {
 } from '../store/staffSlice'
 import CustomPopup from '../components/CustomPopup'
 import CustomTable from '../components/CustomTable'
+import { getCrudPermissions } from '../utils/permissions'
 
 function StaffPage() {
   const sanitizePhoneValue = (value) => String(value ?? '').replace(/\D/g, '').slice(0, 10)
@@ -23,6 +24,10 @@ function StaffPage() {
 
   const dispatch = useDispatch()
   const { user } = useSelector((state) => state.auth)
+  const permissions = useMemo(
+    () => getCrudPermissions(user, { moduleMatchers: ['staff', 'teacher'] }),
+    [user],
+  )
 
   const [staffData, setStaffData] = useState([])
   const [departments, setDepartments] = useState([])
@@ -493,30 +498,37 @@ function StaffPage() {
       header: 'Date Of Joining',
       render: (staff) => (staff?.date_of_joining ? String(staff.date_of_joining).split('T')[0] : '-'),
     },
-    {
+  ]
+
+  if (permissions.canUpdate || permissions.canDelete) {
+    staffColumns.push({
       key: 'action',
       header: 'Action',
       render: (staff) => (
         <div className="role-management-table-actions">
-          <button
-            type="button"
-            className="role-management-action-btn role-management-action-btn-edit"
-            onClick={() => handleEditStaff(staff)}
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            className="role-management-action-btn role-management-action-btn-delete"
-            onClick={() => requestDeleteStaff(staff)}
-            disabled={actionLoadingId === String(staff?.id)}
-          >
-            {actionLoadingId === String(staff?.id) ? 'Deleting...' : 'Delete'}
-          </button>
+          {permissions.canUpdate && (
+            <button
+              type="button"
+              className="role-management-action-btn role-management-action-btn-edit"
+              onClick={() => handleEditStaff(staff)}
+            >
+              Edit
+            </button>
+          )}
+          {permissions.canDelete && (
+            <button
+              type="button"
+              className="role-management-action-btn role-management-action-btn-delete"
+              onClick={() => requestDeleteStaff(staff)}
+              disabled={actionLoadingId === String(staff?.id)}
+            >
+              {actionLoadingId === String(staff?.id) ? 'Deleting...' : 'Delete'}
+            </button>
+          )}
         </div>
       ),
-    },
-  ]
+    })
+  }
 
   return (
     <section className="role-management-wrap">
@@ -524,13 +536,15 @@ function StaffPage() {
         <div className="role-management-head">
           <div className="role-management-head-row">
             <h2 className="role-management-title">Staff</h2>
-            <button
-              type="button"
-              className="role-management-open-create-btn"
-              onClick={openCreatePopup}
-            >
-              Create Staff
-            </button>
+            {permissions.canCreate && (
+              <button
+                type="button"
+                className="role-management-open-create-btn"
+                onClick={openCreatePopup}
+              >
+                Create Staff
+              </button>
+            )}
           </div>
         </div>
 
@@ -587,7 +601,7 @@ function StaffPage() {
         )}
       </div>
 
-      {isCreatePopupOpen && (
+      {isCreatePopupOpen && permissions.canCreate && (
         <div className="custom-popup-backdrop" role="presentation">
           <div
             className="custom-popup role-management-create-popup"
@@ -796,7 +810,7 @@ function StaffPage() {
         </div>
       )}
 
-      {editingStaffId && (
+      {editingStaffId && permissions.canUpdate && (
         <div className="custom-popup-backdrop" role="presentation">
           <div
             className="custom-popup role-management-edit-popup"

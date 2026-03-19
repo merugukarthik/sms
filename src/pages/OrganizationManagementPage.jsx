@@ -9,6 +9,7 @@ import {
   fetchOrganizations,
   updateOrganization,
 } from '../store/organizationsSlice'
+import { getCrudPermissions } from '../utils/permissions'
 
 const normalizeOrganizations = (response) => (
   Array.isArray(response)
@@ -93,6 +94,10 @@ function OrganizationManagementPage() {
   const dispatch = useDispatch()
   const authUser = useSelector((state) => state.auth.user)
   const accessToken = authUser?.access_token ?? authUser?.token ?? ''
+  const permissions = useMemo(
+    () => getCrudPermissions(authUser, { moduleMatchers: ['organization', 'org'] }),
+    [authUser],
+  )
 
   const [organizations, setOrganizations] = useState([])
   const [roles, setRoles] = useState([])
@@ -346,29 +351,36 @@ function OrganizationManagementPage() {
     { key: 'address', header: 'Address' },
     { key: 'phone', header: 'Phone' },
     { key: 'email', header: 'Email' },
-    {
+  ]
+
+  if (permissions.canUpdate || permissions.canDelete) {
+    columns.push({
       key: 'actions',
       header: 'Action',
       render: (item) => (
         <div className="role-management-table-actions">
-          <button
-            type="button"
-            className="role-management-action-btn role-management-action-btn-edit"
-            onClick={() => openEditModal(item)}
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            className="role-management-action-btn role-management-action-btn-delete"
-            onClick={() => setDeleteTarget(item)}
-          >
-            Delete
-          </button>
+          {permissions.canUpdate && (
+            <button
+              type="button"
+              className="role-management-action-btn role-management-action-btn-edit"
+              onClick={() => openEditModal(item)}
+            >
+              Edit
+            </button>
+          )}
+          {permissions.canDelete && (
+            <button
+              type="button"
+              className="role-management-action-btn role-management-action-btn-delete"
+              onClick={() => setDeleteTarget(item)}
+            >
+              Delete
+            </button>
+          )}
         </div>
       ),
-    },
-  ]
+    })
+  }
 
   return (
     <section className="role-management-wrap">
@@ -376,13 +388,15 @@ function OrganizationManagementPage() {
         <div className="role-management-head">
           <div className="role-management-head-row">
             <h2 className="role-management-title">Organization Management</h2>
-            <button
-              type="button"
-              className="role-management-open-create-btn"
-              onClick={openCreateModal}
-            >
-              Add Organization
-            </button>
+            {permissions.canCreate && (
+              <button
+                type="button"
+                className="role-management-open-create-btn"
+                onClick={openCreateModal}
+              >
+                Add Organization
+              </button>
+            )}
           </div>
         </div>
 
@@ -411,6 +425,7 @@ function OrganizationManagementPage() {
         popupClassName="organization-create-popup"
         onClose={closeFormModal}
       >
+        {(permissions.canCreate || (editingOrganization && permissions.canUpdate)) && (
         <form className="role-management-form role-management-form-two-col" onSubmit={handleSubmit}>
           <div className="organization-form-section">
             <div className="organization-form-section-title">Organization Information</div>
@@ -610,6 +625,7 @@ function OrganizationManagementPage() {
             </button>
           </div>
         </form>
+        )}
       </CustomPopup>
 
       <CustomPopup

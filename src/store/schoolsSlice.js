@@ -32,9 +32,20 @@ const getAuthHeaders = (access_token) => ({
 
 export const fetchSchools = createAsyncThunk(
   'schools/fetchSchools',
-  async ({ access_token }, { rejectWithValue }) => {
+  async ({ access_token, organization_id, page, page_size }, { rejectWithValue }) => {
     try {
-      const response = await fetch(SCHOOLS_URL, {
+      const query = new URLSearchParams()
+      if (organization_id !== undefined && organization_id !== null && String(organization_id).trim()) {
+        query.set('organization_id', String(organization_id))
+      }
+      if (page !== undefined && page !== null && String(page).trim()) {
+        query.set('page', String(page))
+      }
+      if (page_size !== undefined && page_size !== null && String(page_size).trim()) {
+        query.set('page_size', String(page_size))
+      }
+
+      const response = await fetch(`${SCHOOLS_URL}${query.toString() ? `?${query.toString()}` : ''}`, {
         method: 'GET',
         headers: getAuthHeaders(access_token),
       })
