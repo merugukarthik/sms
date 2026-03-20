@@ -19,7 +19,6 @@ import {
   fetchUpdateSubject,
 } from '../store/academicSlice'
 import { fetchSchools } from '../store/schoolsSlice'
-import { fetchStaffList } from '../store/staffSlice'
 import CustomPopup from '../components/CustomPopup'
 import CustomTable from '../components/CustomTable'
 import { getCrudPermissions } from '../utils/permissions'
@@ -52,34 +51,12 @@ const SUPPORTED_TAB_METADATA = {
   [TAB_KEYS.SUBJECTS]: { label: 'Subjects', entityLabel: 'Subject', supported: true },
 }
 
-const DEFAULT_SUBJECT_OPTIONS = [
-  { value: '1', label: 'Mathematics' },
-  { value: '2', label: 'Science' },
-  { value: '3', label: 'English' },
-  { value: '4', label: 'Social Studies' },
-  { value: '5', label: 'Computer Science' },
-]
-
-const SAMPLE_TEACHER_OPTIONS = [
-  { value: '1', label: 'Priya Sharma' },
-  { value: '2', label: 'Arjun Reddy' },
-  { value: '3', label: 'Neha Verma' },
-  { value: '4', label: 'Rahul Kumar' },
-  { value: '5', label: 'Anita Singh' },
-]
-
 const SAMPLE_SECTION_OPTIONS = [
   { value: '1', label: 'Section A' },
   { value: '2', label: 'Section B' },
   { value: '3', label: 'Section C' },
   { value: '4', label: 'Section D' },
 ]
-
-const createEmptyClassAssignmentRow = () => ({
-  id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  subject_id: '',
-  teacher_id: '',
-})
 
 const toSlug = (value) => {
   if (typeof value !== 'string') return ''
@@ -114,8 +91,8 @@ const getInitialFormData = (tab) => {
     return {
       school_id: '',
       class_name: '',
-      section_id: '',
-      academic_year_id: '',
+      class_code: '',
+      section_ids: [],
     }
   }
 
@@ -221,19 +198,18 @@ function AcademicsPage() {
   const [sectionsData, setSectionsData] = useState([])
   const [subjectsData, setSubjectsData] = useState([])
   const [schoolsData, setSchoolsData] = useState([])
-  const [teachersData, setTeachersData] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [actionLoadingId, setActionLoadingId] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isCreatePopupOpen, setIsCreatePopupOpen] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleteError, setDeleteError] = useState('')
   const [error, setError] = useState('')
   const [formError, setFormError] = useState({})
   const [message, setMessage] = useState('')
   const [formData, setFormData] = useState(getInitialFormData(TAB_KEYS.ACADEMIC_YEARS))
   const [editFormData, setEditFormData] = useState(getInitialFormData(TAB_KEYS.ACADEMIC_YEARS))
-  const [classAssignmentRows, setClassAssignmentRows] = useState([createEmptyClassAssignmentRow()])
   const currentCalendarYear = new Date().getFullYear()
   const currentAcademicYearValue = formatAcademicYear(currentCalendarYear)
   const selectedAcademicStartYear = parseAcademicYearStart(formData.academic_year)
@@ -285,26 +261,6 @@ function AcademicsPage() {
       }))
       : SAMPLE_SECTION_OPTIONS
   ), [sectionsData])
-  const academicYearOptions = useMemo(() => (
-    academicYears.map((year, index) => ({
-      value: String(year?.id ?? ''),
-      label: year?.name || year?.academic_year || `Academic Year ${index + 1}`,
-    }))
-  ), [academicYears])
-  const teacherOptions = useMemo(() => (
-    teachersData.length > 0
-      ? teachersData.map((teacher, index) => ({
-        value: String(teacher?.id ?? ''),
-        label: String(
-          teacher?.full_name
-          || `${teacher?.first_name || ''} ${teacher?.last_name || ''}`.trim()
-          || teacher?.name
-          || `Teacher ${index + 1}`,
-        ),
-      }))
-      : SAMPLE_TEACHER_OPTIONS
-  ), [teachersData])
-
   useEffect(() => {
     if (availableTabs.length === 0) return
     if (!availableTabs.some((tab) => tab.key === activeTab)) {
@@ -382,17 +338,15 @@ function AcademicsPage() {
       if (!user?.access_token) return
 
       try {
-        const [classesResp, sectionsResp, academicYearsResp, teachersResp] = await Promise.all([
+        const [classesResp, sectionsResp, academicYearsResp] = await Promise.all([
           dispatch(fetchClasses({ access_token: user.access_token })).unwrap(),
           dispatch(fetchSections({ access_token: user.access_token })).unwrap(),
           dispatch(fetchAcademicYears({ access_token: user.access_token })).unwrap(),
-          dispatch(fetchStaffList({ access_token: user.access_token, page: 1, page_size: 200 })).unwrap(),
         ])
 
         setClassesData(normalizeList(classesResp))
         setSectionsData(normalizeList(sectionsResp))
         setAcademicYears(normalizeList(academicYearsResp))
-        setTeachersData(normalizeList(teachersResp))
       } catch {
         // Keep existing data when auxiliary options fail to load.
       }
@@ -408,7 +362,6 @@ function AcademicsPage() {
     setFormError({})
     setFormData(getInitialFormData(activeTab))
     setEditFormData(getInitialFormData(activeTab))
-    setClassAssignmentRows([createEmptyClassAssignmentRow()])
   }, [activeTab])
 
   const validateForm = (tab, values) => {
@@ -439,20 +392,13 @@ function AcademicsPage() {
       if (!String(values.class_name ?? '').trim()) {
         nextErrors.class_name = 'Class name is required.'
       }
-      if (!values.section_id) {
-        nextErrors.section_id = 'Section is required.'
+      if (!String(values.class_code ?? '').trim()) {
+        nextErrors.class_code = 'Code is required.'
       }
-      if (!values.academic_year_id) {
-        nextErrors.academic_year_id = 'Academic year is required.'
+      if (!Array.isArray(values.section_ids) || values.section_ids.length === 0) {
+        nextErrors.section_ids = 'Select at least one section.'
       }
 
-      const hasInvalidAssignment = classAssignmentRows.some((row) => (
-        !String(row.subject_id ?? '').trim() || !String(row.teacher_id ?? '').trim()
-      ))
-
-      if (hasInvalidAssignment) {
-        nextErrors.class_assignments = 'Enter subject id and teacher id for each row.'
-      }
     }
 
     if (tab === TAB_KEYS.SUBJECTS) {
@@ -478,16 +424,12 @@ function AcademicsPage() {
       return
     }
     setFormData(getInitialFormData(activeTab))
-    if (activeTab === TAB_KEYS.CLASSES) {
-      setClassAssignmentRows([createEmptyClassAssignmentRow()])
-    }
   }
 
   const closeCreatePopup = () => {
     setIsCreatePopupOpen(false)
     setFormData(getInitialFormData(activeTab))
     setFormError({})
-    setClassAssignmentRows([createEmptyClassAssignmentRow()])
   }
 
   const closeEditPopup = () => {
@@ -522,25 +464,19 @@ function AcademicsPage() {
     setFormError((prev) => ({ ...prev, [name]: '', editSubmit: '' }))
   }
 
-  const handleClassAssignmentChange = (rowId, field, value) => {
-    setClassAssignmentRows((prev) => prev.map((row) => (
-      row.id === rowId
-        ? { ...row, [field]: value }
-        : row
-    )))
-    setFormError((prev) => ({ ...prev, class_assignments: '', submit: '' }))
-  }
+  const handleClassSectionToggle = (sectionId) => {
+    setFormData((prev) => {
+      const currentIds = Array.isArray(prev.section_ids) ? prev.section_ids : []
+      const nextIds = currentIds.includes(sectionId)
+        ? currentIds.filter((id) => id !== sectionId)
+        : [...currentIds, sectionId]
 
-  const handleAddClassAssignmentRow = () => {
-    setClassAssignmentRows((prev) => [...prev, createEmptyClassAssignmentRow()])
-  }
-
-  const handleRemoveClassAssignmentRow = (rowId) => {
-    setClassAssignmentRows((prev) => (
-      prev.length === 1
-        ? prev
-        : prev.filter((row) => row.id !== rowId)
-    ))
+      return {
+        ...prev,
+        section_ids: nextIds,
+      }
+    })
+    setFormError((prev) => ({ ...prev, section_ids: '', submit: '' }))
   }
 
   const handleSetNextAcademicYear = () => {
@@ -595,19 +531,20 @@ function AcademicsPage() {
     setIsSubmitting(true)
     try {
       if (activeTab === TAB_KEYS.CLASSES) {
+        const normalizedSectionIds = (Array.isArray(formData.section_ids) ? formData.section_ids : [])
+          .map((id) => Number(id))
+          .filter((id) => Number.isFinite(id) && id > 0)
+
         await dispatch(fetchCreateClass({
           //class_id: 0,
           school_id: Number(formData.school_id),
-          class_name: formData.class_name.trim(),
-          class_code: 'c1',
+          name: formData.class_name.trim(),
+          code: String(formData.class_code || '').trim(),
           sort_order: 0,
-          section_id: Number(formData.section_id),
-          academic_year_id: Number(formData.academic_year_id),
-          subjects: classAssignmentRows.map((row) => ({
-            subject_id: String(row.subject_id).trim(),
-            teacher_id: Number(row.teacher_id),
-          })),
+          sections: normalizedSectionIds,
+        //  subjects: [],
           access_token: user.access_token,
+          priority:0
         })).unwrap()
       } else if (activeTab === TAB_KEYS.SECTIONS) {
         await dispatch(
@@ -670,7 +607,7 @@ function AcademicsPage() {
     } else if (activeTab === TAB_KEYS.SECTIONS) {
       setEditFormData({
         name: item?.name || '',
-        class_id: Number(item?.class_id ?? 0),
+        code: item?.code || '',
       })
     } else if (activeTab === TAB_KEYS.CLASSES) {
       setEditFormData({
@@ -692,8 +629,12 @@ function AcademicsPage() {
   }
 
   const handleUpdate = async (event) => {
+    
     event.preventDefault()
-    const validationErrors = validateForm(activeTab, editFormData)
+    const validationErrors = activeTab === TAB_KEYS.CLASSES
+    console.log('section edit',TAB_KEYS.CLASSES)
+      ? (!String(editFormData.name ?? '').trim() ? { name: 'Name is required.' } : {})
+      : validateForm(activeTab, editFormData)
     if (Object.keys(validationErrors).length > 0) {
       setFormError(validationErrors)
       return
@@ -706,6 +647,7 @@ function AcademicsPage() {
 
     setIsSubmitting(true)
     try {
+      
       if (activeTab === TAB_KEYS.CLASSES) {
         await dispatch(
           fetchUpdateClass({
@@ -715,11 +657,12 @@ function AcademicsPage() {
           }),
         ).unwrap()
       } else if (activeTab === TAB_KEYS.SECTIONS) {
+       
         await dispatch(
           fetchUpdateSection({
             id: editingItem.id,
-            name: editFormData.name,
-            class_id: editFormData.class_id,
+            name: String(editFormData.name || '').trim(),
+            code: String(editFormData.code || '').trim(),
             access_token: user.access_token,
           }),
         ).unwrap()
@@ -765,10 +708,13 @@ function AcademicsPage() {
   }
 
   const requestDelete = (item) => {
+    setError('')
+    setDeleteError('')
     setDeleteTarget(item)
   }
 
   const closeDeletePopup = () => {
+    setDeleteError('')
     setDeleteTarget(null)
   }
 
@@ -779,6 +725,7 @@ function AcademicsPage() {
 
     setActionLoadingId(String(id))
     setMessage('')
+    setDeleteError('')
     try {
       if (activeTab === TAB_KEYS.CLASSES) {
         await dispatch(fetchDeleteClass({ id, access_token: user.access_token })).unwrap()
@@ -796,9 +743,8 @@ function AcademicsPage() {
       await refreshByTab(activeTab)
       setMessage(`${currentEntityLabel} deleted successfully.`)
     } catch (err) {
-      setFormError({
-        submit: typeof err === 'string' ? err : `Failed to delete ${currentEntityLabel.toLowerCase()}.`,
-      })
+      const nextDeleteError = typeof err === 'string' ? err : `Failed to delete ${currentEntityLabel.toLowerCase()}.`
+      setDeleteError(nextDeleteError)
     } finally {
       setActionLoadingId('')
     }
@@ -849,8 +795,7 @@ function AcademicsPage() {
       const sectionColumns = [
         { key: 'id', header: 'Section Id' },
         { key: 'name', header: 'Name' },
-        { key: 'class_name', header: 'Class' },
-        { key: 'class_id', header: 'Class Id' },
+        { key: 'code', header: 'Code' },
       ]
 
       if (showActionColumn) {
@@ -1002,7 +947,7 @@ function AcademicsPage() {
               key={tab.key}
               type="button"
               className={`role-management-tab-btn ${activeTab === tab.key ? 'role-management-tab-btn-active' : ''}`}
-              onClick={() => setActiveTab(tab.key)}
+              onClick={() => {setActiveTab(tab.key),console.log("tab:_ ",tab)}}
             >
               {tab.label}
             </button>
@@ -1100,106 +1045,39 @@ function AcademicsPage() {
                   </div>
 
                   <div className="role-management-field">
-                    <label htmlFor="academic-class-section" className="role-management-label">Section</label>
-                    <select
-                      id="academic-class-section"
-                      name="section_id"
-                      className="role-management-select"
-                      value={formData.section_id}
+                    <label htmlFor="academic-class-code" className="role-management-label">Code</label>
+                    <input
+                      id="academic-class-code"
+                      name="class_code"
+                      type="text"
+                      className="role-management-input"
+                      value={formData.class_code}
                       onChange={handleInputChange}
-                    >
-                      <option value="">Select section</option>
-                      {sectionOptions.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-                    {formError.section_id && <p className="role-management-field-error">{formError.section_id}</p>}
+                      placeholder="Enter class code"
+                    />
+                    {formError.class_code && <p className="role-management-field-error">{formError.class_code}</p>}
                   </div>
 
                   <div className="role-management-field">
-                    <label htmlFor="academic-class-academic-year" className="role-management-label">Academic Year</label>
-                    <select
-                      id="academic-class-academic-year"
-                      name="academic_year_id"
-                      className="role-management-select"
-                      value={formData.academic_year_id}
-                      onChange={handleInputChange}
-                    >
-                      <option value="">Select academic year</option>
-                      {academicYearOptions.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-                    {formError.academic_year_id && <p className="role-management-field-error">{formError.academic_year_id}</p>}
+                    <span className="role-management-label">Sections</span>
+                    <div className="academic-class-sections-list">
+                      {sectionOptions.map((option) => {
+                        const isChecked = Array.isArray(formData.section_ids) && formData.section_ids.includes(option.value)
+                        return (
+                          <label key={option.value} className="academic-class-section-option">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => handleClassSectionToggle(option.value)}
+                            />
+                            <span>{option.label}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                    {formError.section_ids && <p className="role-management-field-error">{formError.section_ids}</p>}
                   </div>
                 </>
-              )}
-
-              {activeTab === TAB_KEYS.CLASSES && (
-                <div className="academic-class-builder">
-                  <div className="academic-class-builder-head">
-                    <div>
-                      <p className="academic-class-builder-title">Subjects</p>
-                    </div>
-                    <button
-                      type="button"
-                      className="role-management-open-create-btn academic-class-add-row-btn"
-                      onClick={handleAddClassAssignmentRow}
-                    >
-                      + Add
-                    </button>
-                  </div>
-
-                  <div className="academic-class-assignment-grid academic-class-assignment-grid-head" aria-hidden="true">
-                    <span>Subject</span>
-                    <span>Staff Name</span>
-                    <span>Action</span>
-                  </div>
-
-                  <div className="academic-class-assignment-list">
-                    {classAssignmentRows.map((row, index) => (
-                      <div key={row.id} className="academic-class-assignment-grid">
-                        <select
-                          className="role-management-select"
-                          value={row.subject_id}
-                          onChange={(event) => handleClassAssignmentChange(row.id, 'subject_id', event.target.value)}
-                          aria-label={`Subject row ${index + 1}`}
-                        >
-                          <option value="">Select subject</option>
-                          {DEFAULT_SUBJECT_OPTIONS.map((subject) => (
-                            <option key={subject.value} value={subject.value}>{subject.label}</option>
-                          ))}
-                        </select>
-
-                        <select
-                          className="role-management-select"
-                          value={row.teacher_id}
-                          onChange={(event) => handleClassAssignmentChange(row.id, 'teacher_id', event.target.value)}
-                          aria-label={`Teacher row ${index + 1}`}
-                        >
-                          <option value="">Select Staff Name</option>
-                          {teacherOptions.map((teacher) => (
-                            <option key={teacher.value} value={teacher.value}>{teacher.label}</option>
-                          ))}
-                        </select>
-
-                        <button
-                          type="button"
-                          className="role-management-cancel-btn academic-class-remove-row-btn"
-                          onClick={() => handleRemoveClassAssignmentRow(row.id)}
-                          disabled={classAssignmentRows.length === 1}
-                          aria-label={`Remove row ${index + 1}`}
-                        >
-                          X
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-
-                  {formError.class_assignments && (
-                    <p className="role-management-field-error">{formError.class_assignments}</p>
-                  )}
-                </div>
               )}
 
               {activeTab === TAB_KEYS.SUBJECTS && (
@@ -1544,16 +1422,17 @@ function AcademicsPage() {
 
               {activeTab === TAB_KEYS.SECTIONS && (
                 <div className="role-management-field">
-                  <label htmlFor="edit-academic-class_id" className="role-management-label">Class Id</label>
+                  <label htmlFor="edit-academic-section-code" className="role-management-label">Code</label>
                   <input
-                    id="edit-academic-class_id"
-                    name="class_id"
-                    type="number"
+                    id="edit-academic-section-code"
+                    name="code"
+                    type="text"
                     className="role-management-input"
-                    value={editFormData.class_id}
+                    value={editFormData.code}
                     onChange={handleEditInputChange}
+                    placeholder="Enter section code"
                   />
-                  {formError.class_id && <p className="role-management-field-error">{formError.class_id}</p>}
+                  {formError.code && <p className="role-management-field-error">{formError.code}</p>}
                 </div>
               )}
 
@@ -1660,7 +1539,6 @@ function AcademicsPage() {
       <CustomPopup
         isOpen={Boolean(deleteTarget)}
         title={`Delete ${currentEntityLabel}`}
-        message={`Are you sure you want to delete "${deleteTarget?.name || `this ${currentEntityLabel.toLowerCase()}`}"?`}
         onConfirm={handleDelete}
         confirmText={actionLoadingId === String(deleteTarget?.id) ? 'Deleting...' : 'Delete'}
         onCancel={closeDeletePopup}
@@ -1668,7 +1546,29 @@ function AcademicsPage() {
         showCancel
         isDanger
         titleId="delete-academic-tab-title"
-      />
+      >
+        <p className="custom-popup-message">
+          {`Are you sure you want to delete "${deleteTarget?.name || `this ${currentEntityLabel.toLowerCase()}`}"?`}
+        </p>
+        {deleteError && <p className="role-management-field-error">{deleteError}</p>}
+        <div className="custom-popup-actions">
+          <button
+            type="button"
+            className="otp-back-btn custom-popup-btn"
+            onClick={closeDeletePopup}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="login-submit-btn custom-popup-btn custom-popup-danger-btn"
+            onClick={handleDelete}
+            disabled={actionLoadingId === String(deleteTarget?.id)}
+          >
+            {actionLoadingId === String(deleteTarget?.id) ? 'Deleting...' : 'Delete'}
+          </button>
+        </div>
+      </CustomPopup>
     </section>
   )
 }

@@ -7,14 +7,61 @@ const initialState = {
   error: null,
 }
 
+const toReadableError = (value) => {
+  if (typeof value === 'string' && value.trim()) {
+    return value
+  }
+
+  if (Array.isArray(value)) {
+    const messages = value
+      .map((item) => toReadableError(item))
+      .filter(Boolean)
+
+    return messages.length > 0 ? messages.join(', ') : ''
+  }
+
+  if (value && typeof value === 'object') {
+    if (typeof value.msg === 'string' && value.msg.trim()) {
+      return value.msg
+    }
+
+    if (typeof value.message === 'string' && value.message.trim()) {
+      return value.message
+    }
+
+    if (typeof value.detail === 'string' && value.detail.trim()) {
+      return value.detail
+    }
+  }
+
+  return ''
+}
+
 const getErrorMessage = async (response, fallbackText = 'Request failed') => {
   try {
-    const data = await response.json()
-    if (typeof data?.message === 'string' && data.message.trim()) {
-      return data.message
+    const rawText = await response.text()
+
+    if (rawText) {
+      try {
+        const data = JSON.parse(rawText)
+
+        const errorMessage = toReadableError(data?.message)
+          || toReadableError(data?.detail)
+          || toReadableError(data?.error)
+          || toReadableError(data)
+
+        if (errorMessage) {
+          return errorMessage
+        }
+      } catch {
+        const plainTextMessage = rawText.trim()
+        if (plainTextMessage) {
+          return plainTextMessage
+        }
+      }
     }
   } catch {
-    // Fall back to response status when body is not JSON.
+    // Fall back to response status when body is not readable.
   }
 
   return `${fallbackText} (${response.status})`
@@ -150,15 +197,28 @@ export const fetchCreateClass = createAsyncThunk(
   async ({
     //class_id,
     school_id,
-    class_name,
-    class_code,
+    name,
+    code,
     sort_order,
-    section_id,
-    academic_year_id,
-    subjects,
+    sections,
+    priority,
     access_token,
   }, { rejectWithValue }) => {
     try {
+      const normalizedSections = Array.isArray(sections)
+        ? sections
+          .map((item) => {
+            if (item && typeof item === 'object' && 'section_id' in item) {
+              const sectionId = Number(item.section_id)
+              return Number.isFinite(sectionId) && sectionId > 0 ? { section_id: sectionId } : null
+            }
+
+            const sectionId = Number(item)
+            return Number.isFinite(sectionId) && sectionId > 0 ? { section_id: sectionId } : null
+          })
+          .filter(Boolean)
+        : []
+
       const response = await fetch(`${API_BASE_URL}/academics/classes`, {
         method: 'POST',
         headers: {
@@ -167,14 +227,12 @@ export const fetchCreateClass = createAsyncThunk(
           Authorization: 'Bearer ' + access_token,
         },
         body: JSON.stringify({
-         // class_id,
           school_id,
-          class_name,
-          class_code,
+          name,
+          code,
           sort_order,
-          section_id,
-          academic_year_id,
-          subjects,
+          priority,
+          sections
         }),
       })
 
@@ -409,7 +467,7 @@ export const fetchCreateSection = createAsyncThunk(
 
 export const fetchUpdateSection = createAsyncThunk(
   'academic/fetchUpdateSection',
-  async ({ id, name, class_id, access_token }, { rejectWithValue }) => {
+  async ({ id, name, code, access_token }, { rejectWithValue }) => {
     try {
       const response = await fetch(`${API_BASE_URL}/academics/sections/${id}`, {
         method: 'PUT',
@@ -418,7 +476,7 @@ export const fetchUpdateSection = createAsyncThunk(
           'Content-Type': 'application/json',
           Authorization: 'Bearer ' + access_token,
         },
-        body: JSON.stringify({ name, class_id }),
+        body: JSON.stringify({ name, code }),
       })
 
       if (!response.ok) {

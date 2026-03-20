@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import CustomPopup from '../components/CustomPopup'
 import CustomTable from '../components/CustomTable'
+import { fetchAcademicYears, fetchClasses, fetchSections } from '../store/academicSlice'
 import { fetchCreateFinanceAssignment } from '../store/feesSlice'
 import { fetchCreateStudent, fetchPromoteStudent, fetchStudentsList } from '../store/studentsSlice'
 import { getCrudPermissions } from '../utils/permissions'
@@ -12,6 +13,46 @@ const FEE_TYPE_OPTIONS = [
   { value: '3', label: 'Hostel Fee' },
   { value: '4', label: 'Exam Fee' },
 ]
+
+const PAYMENT_MODE_OPTIONS = [
+  { value: 'cash', label: 'Cash' },
+  { value: 'card', label: 'Card' },
+  { value: 'upi', label: 'UPI' },
+  { value: 'net_banking', label: 'Net Banking' },
+  { value: 'cheque', label: 'Cheque' },
+]
+
+const PAYMENT_STATUS_OPTIONS = [
+  { value: 'success', label: 'Success' },
+  { value: 'pending', label: 'Pending' },
+]
+
+const GENDER_OPTIONS = [
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
+  { value: 'other', label: 'Other' },
+]
+
+const getNormalizedList = (resp) => (
+  Array.isArray(resp?.items)
+    ? resp.items
+    : Array.isArray(resp)
+      ? resp
+      : Array.isArray(resp?.data)
+        ? resp.data
+        : []
+)
+
+const getSectionClassId = (section) => (
+  Number(
+    section?.class_id
+    ?? section?.class?.id
+    ?? section?.class?.class_id
+    ?? section?.class_details?.id
+    ?? section?.class_details?.class_id
+    ?? 0
+  )
+)
 
 function StudentPage() {
   const sanitizePhoneValue = (value) => String(value ?? '').replace(/\D/g, '').slice(0, 10)
@@ -31,6 +72,9 @@ function StudentPage() {
     page_size: 20,
     total_pages: 0,
   })
+  const [classesData, setClassesData] = useState([])
+  const [sectionsData, setSectionsData] = useState([])
+  const [academicYearsData, setAcademicYearsData] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -56,9 +100,9 @@ function StudentPage() {
     parent_name: '',
     parent_phone: '',
     parent_email: '',
-    class_id: 0,
-    section_id: 0,
-    academic_year_id: 0,
+    class_id: '',
+    section_id: '',
+    academic_year_id: '',
     admission_date: '',
     admission_no: ''
   })
@@ -78,6 +122,33 @@ function StudentPage() {
     student_id: '',
     remarks: '',
   })
+  const academicYearOptions = useMemo(() => (
+    academicYearsData.map((year, index) => ({
+      value: String(year?.id ?? ''),
+      label: year?.name || year?.academic_year || `Academic Year ${index + 1}`,
+    })).filter((option) => option.value)
+  ), [academicYearsData])
+  const classOptions = useMemo(() => (
+    classesData.map((item, index) => ({
+      value: String(item?.id ?? ''),
+      label: item?.name || item?.class_name || `Class ${index + 1}`,
+    })).filter((option) => option.value)
+  ), [classesData])
+  const sectionOptions = useMemo(() => {
+    const selectedClassId = Number(formData.class_id)
+    const normalizedSections = sectionsData.map((item, index) => ({
+      value: String(item?.id ?? item?.section_id ?? ''),
+      label: item?.name || item?.section_name || `Section ${index + 1}`,
+      classId: getSectionClassId(item),
+    })).filter((option) => option.value)
+
+    if (selectedClassId > 0) {
+      const matchingSections = normalizedSections.filter((option) => option.classId === selectedClassId)
+      return matchingSections.length > 0 ? matchingSections : normalizedSections
+    }
+
+    return normalizedSections
+  }, [formData.class_id, sectionsData])
 
   const refreshStudents = async () => {
     if (!user?.access_token) return
@@ -125,6 +196,45 @@ function StudentPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dispatch, user?.access_token])
 
+  useEffect(() => {
+    const loadAcademicYears = async () => {
+      if (!user?.access_token) return
+
+      try {
+        const resp = await dispatch(fetchAcademicYears({
+          access_token: user.access_token,
+        })).unwrap()
+
+        setAcademicYearsData(getNormalizedList(resp))
+      } catch {
+        setAcademicYearsData([])
+      }
+    }
+
+    loadAcademicYears()
+  }, [dispatch, user?.access_token])
+
+  useEffect(() => {
+    const loadClassAndSectionOptions = async () => {
+      if (!user?.access_token) return
+
+      try {
+        const [classesResp, sectionsResp] = await Promise.all([
+          dispatch(fetchClasses({ access_token: user.access_token })).unwrap(),
+          dispatch(fetchSections({ access_token: user.access_token })).unwrap(),
+        ])
+
+        setClassesData(getNormalizedList(classesResp))
+        setSectionsData(getNormalizedList(sectionsResp))
+      } catch {
+        setClassesData([])
+        setSectionsData([])
+      }
+    }
+
+    loadClassAndSectionOptions()
+  }, [dispatch, user?.access_token])
+
   const validateForm = (values) => {
     const nextErrors = {}
     if (!values.first_name.trim()) nextErrors.first_name = 'First name is required.'
@@ -139,11 +249,9 @@ function StudentPage() {
     if (!values.parent_phone.trim()) nextErrors.parent_phone = 'Parent phone is required.'
     if (values.parent_phone && !/^\d{1,10}$/.test(values.parent_phone)) nextErrors.parent_phone = 'Parent phone number must be up to 10 digits.'
     if (!values.parent_email.trim()) nextErrors.parent_email = 'Parent email is required.'
-    if (!values.class_id && values.class_id !== 0) nextErrors.section_id = 'Section id is required.'
-    if (!values.section_id && values.section_id !== 0) nextErrors.class_id = 'Class id is required.'
-    if (!values.academic_year_id && values.academic_year_id !== 0) {
-      nextErrors.academic_year_id = 'Academic year id is required.'
-    }
+    if (!String(values.class_id ?? '').trim()) nextErrors.class_id = 'Class is required.'
+    if (!String(values.section_id ?? '').trim()) nextErrors.section_id = 'Section is required.'
+    if (!String(values.academic_year_id ?? '').trim()) nextErrors.academic_year_id = 'Academic year is required.'
     if (!values.admission_no) nextErrors.admission_no = 'Admission number is required.'
     if (!values.admission_date) nextErrors.admission_date = 'Admission date is required.'
     return nextErrors
@@ -168,8 +276,9 @@ function StudentPage() {
       parent_name: '',
       parent_phone: '',
       parent_email: '',
-      section_id: 0,
-      academic_year_id: 0,
+      class_id: '',
+      section_id: '',
+      academic_year_id: '',
       admission_date: '',
       admission_no: ''
     })
@@ -186,6 +295,7 @@ function StudentPage() {
 
     setFormData((prev) => ({
       ...prev,
+      ...(name === 'class_id' ? { section_id: '' } : {}),
       [name]: nextValue,
     }))
     setFormError((prev) => ({ ...prev, [name]: '', submit: '' }))
@@ -209,6 +319,9 @@ function StudentPage() {
       await dispatch(
         fetchCreateStudent({
           ...formData,
+          class_id: Number(formData.class_id),
+          section_id: Number(formData.section_id),
+          academic_year_id: Number(formData.academic_year_id),
           school_id: user.user.school_id,
           access_token: user.access_token,
         }),
@@ -537,15 +650,18 @@ function StudentPage() {
 
               <div className="role-management-field">
                 <label htmlFor="student-gender" className="role-management-label">Gender</label>
-                <input
+                <select
                   id="student-gender"
                   name="gender"
-                  type="text"
-                  className="role-management-input"
+                  className="role-management-select"
                   value={formData.gender}
                   onChange={handleInputChange}
-                  placeholder="Enter gender"
-                />
+                >
+                  <option value="">Select gender</option>
+                  {GENDER_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
                 {formError.gender && <p className="role-management-field-error">{formError.gender}</p>}
               </div>
 
@@ -638,40 +754,52 @@ function StudentPage() {
               </div>
               <div className="role-management-field">
                 <label htmlFor="student-class_id" className="role-management-label">Class Id</label>
-                <input
+                <select
                   id="student-class_id"
                   name="class_id"
-                  type="number"
-                  className="role-management-input"
+                  className="role-management-select"
                   value={formData.class_id}
                   onChange={handleInputChange}
-                />
+                >
+                  <option value="">Select class</option>
+                  {classOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
                 {formError.class_id && <p className="role-management-field-error">{formError.class_id}</p>}
               </div>
 
               <div className="role-management-field">
                 <label htmlFor="student-section_id" className="role-management-label">Section Id</label>
-                <input
+                <select
                   id="student-section_id"
                   name="section_id"
-                  type="number"
-                  className="role-management-input"
+                  className="role-management-select"
                   value={formData.section_id}
                   onChange={handleInputChange}
-                />
+                >
+                  <option value="">Select section</option>
+                  {sectionOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
                 {formError.section_id && <p className="role-management-field-error">{formError.section_id}</p>}
               </div>
 
               <div className="role-management-field">
-                <label htmlFor="student-academic_year_id" className="role-management-label">Academic Year Id</label>
-                <input
+                <label htmlFor="student-academic_year_id" className="role-management-label">Academic Year</label>
+                <select
                   id="student-academic_year_id"
                   name="academic_year_id"
-                  type="number"
-                  className="role-management-input"
+                  className="role-management-select"
                   value={formData.academic_year_id}
                   onChange={handleInputChange}
-                />
+                >
+                  <option value="">Select academic year</option>
+                  {academicYearOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
                 {formError.academic_year_id && <p className="role-management-field-error">{formError.academic_year_id}</p>}
               </div>
 
@@ -800,43 +928,52 @@ function StudentPage() {
 
           <div className="role-management-field">
             <label htmlFor="student-fee-payment-mode" className="role-management-label">Payment Mode</label>
-            <input
+            <select
               id="student-fee-payment-mode"
               name="payment_mode"
-              type="text"
-              className="role-management-input"
+              className="role-management-select"
               value={feeFormData.payment_mode}
               onChange={handleFeeInputChange}
-              placeholder="Enter payment mode"
-            />
+            >
+              <option value="">Select payment mode</option>
+              {PAYMENT_MODE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
             {feeFormError.payment_mode && <p className="role-management-field-error">{feeFormError.payment_mode}</p>}
           </div>
 
           <div className="role-management-field">
             <label htmlFor="student-fee-status" className="role-management-label">Status</label>
-            <input
+            <select
               id="student-fee-status"
               name="status"
-              type="text"
-              className="role-management-input"
+              className="role-management-select"
               value={feeFormData.status}
               onChange={handleFeeInputChange}
-              placeholder="Enter status"
-            />
+            >
+              <option value="">Select status</option>
+              {PAYMENT_STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
             {feeFormError.status && <p className="role-management-field-error">{feeFormError.status}</p>}
           </div>
 
           <div className="role-management-field">
             <label htmlFor="student-fee-academic-year" className="role-management-label">Academic Year</label>
-            <input
+            <select
               id="student-fee-academic-year"
               name="academic_year"
-              type="text"
-              className="role-management-input"
+              className="role-management-select"
               value={feeFormData.academic_year}
               onChange={handleFeeInputChange}
-              placeholder="Enter academic year"
-            />
+            >
+              <option value="">Select academic year</option>
+              {academicYearOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
             {feeFormError.academic_year && <p className="role-management-field-error">{feeFormError.academic_year}</p>}
           </div>
 
