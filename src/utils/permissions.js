@@ -25,6 +25,20 @@ const getFeatureList = (moduleItem) => (
       : []
 )
 
+const getPermissionSources = (entity) => (
+  [entity, entity?.feature].filter(Boolean)
+)
+
+const toBooleanFlag = (value) => {
+  if (typeof value === 'string') {
+    const normalizedValue = value.trim().toLowerCase()
+    if (normalizedValue === 'true' || normalizedValue === '1') return true
+    if (normalizedValue === 'false' || normalizedValue === '0' || normalizedValue === '') return false
+  }
+
+  return Boolean(value)
+}
+
 const matchesAny = (entity, matchers = [], mode = 'includes') => {
   if (!Array.isArray(matchers) || matchers.length === 0) return true
 
@@ -55,13 +69,13 @@ const matchesAny = (entity, matchers = [], mode = 'includes') => {
 }
 
 const getActionValues = (entity) => {
-  const actionSources = [
-    ...(Array.isArray(entity?.actions) ? entity.actions : []),
-    ...(Array.isArray(entity?.permission) ? entity.permission : []),
-    ...(Array.isArray(entity?.permissions) ? entity.permissions : []),
-    ...(Array.isArray(entity?.feature_actions) ? entity.feature_actions : []),
-    ...(Array.isArray(entity?.action_list) ? entity.action_list : []),
-  ]
+  const actionSources = getPermissionSources(entity).flatMap((source) => ([
+    ...(Array.isArray(source?.actions) ? source.actions : []),
+    ...(Array.isArray(source?.permission) ? source.permission : []),
+    ...(Array.isArray(source?.permissions) ? source.permissions : []),
+    ...(Array.isArray(source?.feature_actions) ? source.feature_actions : []),
+    ...(Array.isArray(source?.action_list) ? source.action_list : []),
+  ]))
 
   return actionSources
     .map((actionItem) => {
@@ -81,15 +95,18 @@ const getActionValues = (entity) => {
 }
 
 const hasExplicitCrudFlags = (entity) => (
-  ['can_create', 'can_read', 'can_update', 'can_delete'].some((key) => Object.prototype.hasOwnProperty.call(entity || {}, key))
+  getPermissionSources(entity).some((source) => (
+    ['can_create', 'can_read', 'can_update', 'can_delete', 'canCreate', 'canRead', 'canUpdate', 'canDelete']
+      .some((key) => Object.prototype.hasOwnProperty.call(source || {}, key))
+  ))
 )
 
 const getCrudFlags = (entity) => {
   if (hasExplicitCrudFlags(entity)) {
-    const canCreate = Boolean(entity?.can_create)
-    const canRead = Boolean(entity?.can_read)
-    const canUpdate = Boolean(entity?.can_update)
-    const canDelete = Boolean(entity?.can_delete)
+    const canCreate = getPermissionSources(entity).some((source) => toBooleanFlag(source?.can_create ?? source?.canCreate))
+    const canRead = getPermissionSources(entity).some((source) => toBooleanFlag(source?.can_read ?? source?.canRead))
+    const canUpdate = getPermissionSources(entity).some((source) => toBooleanFlag(source?.can_update ?? source?.canUpdate))
+    const canDelete = getPermissionSources(entity).some((source) => toBooleanFlag(source?.can_delete ?? source?.canDelete))
 
     return {
       canView: canRead || canCreate || canUpdate || canDelete,

@@ -3,17 +3,18 @@ import { useDispatch, useSelector } from 'react-redux'
 import CustomPopup from '../components/CustomPopup'
 import CustomTable from '../components/CustomTable'
 import { createDepartmentWithDesignations, fetchDesignationsBySchool } from '../store/staffSlice'
+import { fetchSchools } from '../store/schoolsSlice'
 import { getCrudPermissions } from '../utils/permissions'
 
-const normalizeList = (response) => (
+const normalizeList = (response, key) => (
   Array.isArray(response)
     ? response
     : Array.isArray(response?.items)
       ? response.items
       : Array.isArray(response?.data)
         ? response.data
-        : Array.isArray(response?.designations)
-          ? response.designations
+        : Array.isArray(response?.[key])
+          ? response[key]
           : []
 )
 
@@ -36,31 +37,54 @@ function DesignationPage() {
   const currentUser = authUser?.user ?? authUser
   const accessToken = authUser?.access_token ?? authUser?.token ?? currentUser?.access_token ?? currentUser?.token ?? ''
   const schoolId = getSchoolId(authUser)
-  const permissions = useMemo(
-    () => getCrudPermissions(authUser, { moduleMatchers: ['designation', 'staff', 'teacher'], featureMatchers: ['designation', 'department'] }),
-    [authUser],
-  )
+  const permissions = useMemo(() => {
+    const permissionVariants = [
+      getCrudPermissions(authUser, { moduleMatchers: ['designation'], featureMatchers: ['designation', 'department'] }),
+      getCrudPermissions(authUser, { moduleMatchers: ['designation'] }),
+      getCrudPermissions(authUser, { moduleMatchers: ['staff', 'teacher'], featureMatchers: ['designation', 'department'] }),
+      getCrudPermissions(authUser, { moduleMatchers: ['staff', 'teacher'] }),
+    ]
+
+    return permissionVariants.reduce((mergedPermissions, currentPermissions) => ({
+      canView: Boolean(mergedPermissions.canView || currentPermissions.canView),
+      canCreate: Boolean(mergedPermissions.canCreate || currentPermissions.canCreate),
+      canUpdate: Boolean(mergedPermissions.canUpdate || currentPermissions.canUpdate),
+      canDelete: Boolean(mergedPermissions.canDelete || currentPermissions.canDelete),
+      canAdd: Boolean(mergedPermissions.canAdd || currentPermissions.canAdd),
+      canEdit: Boolean(mergedPermissions.canEdit || currentPermissions.canEdit),
+    }), {
+      canView: false,
+      canCreate: false,
+      canUpdate: false,
+      canDelete: false,
+      canAdd: false,
+      canEdit: false,
+    })
+  }, [authUser])
 
   const [designations, setDesignations] = useState([])
+  const [schools, setSchools] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [isCreatePopupOpen, setIsCreatePopupOpen] = useState(false)
   const [formData, setFormData] = useState({
+    school_id: schoolId ? String(schoolId) : '',
     department_name: '',
+    code: '',
     designations: [''],
   })
   const [formErrors, setFormErrors] = useState({})
 
-  const loadDesignations = async () => {
+  const loadDesignations = async (targetSchoolId = schoolId) => {
     if (!accessToken) {
       setError('Missing access token. Please login again.')
       setDesignations([])
       return
     }
 
-    if (!schoolId) {
+    if (!targetSchoolId) {
       setError('School id is not available for this user.')
       setDesignations([])
       return
@@ -73,11 +97,11 @@ function DesignationPage() {
       const response = await dispatch(
         fetchDesignationsBySchool({
           access_token: accessToken,
-          school_id: schoolId,
+          school_id: targetSchoolId,
         }),
       ).unwrap()
 
-      setDesignations(normalizeList(response))
+      setDesignations(normalizeList(response, 'designations'))
     } catch (err) {
       setError(typeof err === 'string' ? err : 'Failed to fetch designations.')
       setDesignations([])
@@ -91,10 +115,33 @@ function DesignationPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dispatch, accessToken, schoolId])
 
+  useEffect(() => {
+    const loadSchools = async () => {
+      if (!accessToken) {
+        setSchools([])
+        return
+      }
+
+      try {
+        const response = await dispatch(
+          fetchSchools({ access_token: accessToken }),
+        ).unwrap()
+
+        setSchools(normalizeList(response, 'schools'))
+      } catch {
+        setSchools([])
+      }
+    }
+
+    loadSchools()
+  }, [dispatch, accessToken])
+
   const openCreatePopup = () => {
     setIsCreatePopupOpen(true)
     setFormData({
+      school_id: schoolId ? String(schoolId) : '',
       department_name: '',
+      code: '',
       designations: [''],
     })
     setFormErrors({})
@@ -103,7 +150,9 @@ function DesignationPage() {
   const closeCreatePopup = () => {
     setIsCreatePopupOpen(false)
     setFormData({
+      school_id: schoolId ? String(schoolId) : '',
       department_name: '',
+      code: '',
       designations: [''],
     })
     setFormErrors({})
@@ -115,6 +164,22 @@ function DesignationPage() {
       department_name: event.target.value,
     }))
     setFormErrors((prev) => ({ ...prev, department_name: '', submit: '' }))
+  }
+
+  const handleCodeChange = (event) => {
+    setFormData((prev) => ({
+      ...prev,
+      code: event.target.value,
+    }))
+    setFormErrors((prev) => ({ ...prev, code: '', submit: '' }))
+  }
+
+  const handleSchoolChange = (event) => {
+    setFormData((prev) => ({
+      ...prev,
+      school_id: event.target.value,
+    }))
+    setFormErrors((prev) => ({ ...prev, school_id: '', submit: '' }))
   }
 
   const handleDesignationChange = (index, value) => {
@@ -143,6 +208,10 @@ function DesignationPage() {
 
   const validateForm = (values) => {
     const nextErrors = {}
+    if (!String(values.school_id ?? '').trim()) {
+      nextErrors.school_id = 'School id is required.'
+    }
+
     if (!values.department_name.trim()) {
       nextErrors.department_name = 'Department name is required.'
     }
@@ -169,8 +238,8 @@ function DesignationPage() {
       return
     }
 
-    if (!schoolId) {
-      setFormErrors({ submit: 'School id is not available for this user.' })
+    if (!String(formData.school_id ?? '').trim()) {
+      setFormErrors({ submit: 'School id is required.' })
       return
     }
 
@@ -183,8 +252,9 @@ function DesignationPage() {
         createDepartmentWithDesignations({
           access_token: accessToken,
           payload: {
-            school_id: Number(schoolId),
+            school_id: Number(formData.school_id),
             name: formData.department_name.trim(),
+            code: String(formData.code || '').trim(),
             designations: formData.designations
               .map((item) => item.trim())
               .filter(Boolean)
@@ -195,7 +265,7 @@ function DesignationPage() {
 
       closeCreatePopup()
       setMessage('Department and designations created successfully.')
-      await loadDesignations()
+      await loadDesignations(formData.school_id)
     } catch (err) {
       setFormErrors({
         submit: typeof err === 'string' ? err : 'Failed to create department.',
@@ -270,6 +340,24 @@ function DesignationPage() {
       >
         <form className="role-management-form" onSubmit={handleCreateDepartment}>
           <div className="role-management-field">
+            <label htmlFor="designation-school-id" className="role-management-label">School Id</label>
+            <select
+              id="designation-school-id"
+              className="role-management-select"
+              value={formData.school_id}
+              onChange={handleSchoolChange}
+            >
+              <option value="">Select school</option>
+              {schools.map((school, index) => (
+                <option key={school?.id ?? index} value={school?.id ?? ''}>
+                  {school?.name || `School ${index + 1}`}
+                </option>
+              ))}
+            </select>
+            {formErrors.school_id && <p className="role-management-field-error">{formErrors.school_id}</p>}
+          </div>
+
+          <div className="role-management-field">
             <label htmlFor="designation-department-name" className="role-management-label">Department</label>
             <input
               id="designation-department-name"
@@ -280,6 +368,19 @@ function DesignationPage() {
               placeholder="Enter department name"
             />
             {formErrors.department_name && <p className="role-management-field-error">{formErrors.department_name}</p>}
+          </div>
+
+          <div className="role-management-field">
+            <label htmlFor="designation-department-code" className="role-management-label">Code</label>
+            <input
+              id="designation-department-code"
+              type="text"
+              className="role-management-input"
+              value={formData.code}
+              onChange={handleCodeChange}
+              placeholder="Enter department code"
+            />
+            {formErrors.code && <p className="role-management-field-error">{formErrors.code}</p>}
           </div>
 
           <div className="role-management-field">

@@ -354,7 +354,7 @@ export const fetchSubjects = createAsyncThunk(
 
 export const fetchCreateSubject = createAsyncThunk(
   'academic/fetchCreateSubject',
-  async ({ class_id, section_id, name, code, description, access_token }, { rejectWithValue }) => {
+  async ({ school_id, class_id, section_id, name, code, description, access_token }, { rejectWithValue }) => {
     try {
       const response = await fetch(`${API_BASE_URL}/academics/subjects`, {
         method: 'POST',
@@ -364,6 +364,7 @@ export const fetchCreateSubject = createAsyncThunk(
           Authorization: 'Bearer ' + access_token,
         },
         body: JSON.stringify({
+          school_id,
           class_id,
           section_id,
           name,
@@ -386,7 +387,7 @@ export const fetchCreateSubject = createAsyncThunk(
 
 export const fetchUpdateSubject = createAsyncThunk(
   'academic/fetchUpdateSubject',
-  async ({ subject_id, class_id, section_id, name, code, description, access_token }, { rejectWithValue }) => {
+  async ({ subject_id, school_id, class_id, section_id, name, code, description, access_token }, { rejectWithValue }) => {
     try {
       const response = await fetch(`${API_BASE_URL}/academics/subjects/${subject_id}`, {
         method: 'PUT',
@@ -396,6 +397,7 @@ export const fetchUpdateSubject = createAsyncThunk(
           Authorization: 'Bearer ' + access_token,
         },
         body: JSON.stringify({
+          school_id,
           class_id,
           section_id,
           name,
@@ -510,6 +512,127 @@ export const fetchDeleteSection = createAsyncThunk(
       return { id }
     } catch {
       return rejectWithValue('Unable to delete section. Please try again.')
+    }
+  },
+)
+
+export const fetchExams = createAsyncThunk(
+  'academic/fetchExams',
+  async ({ access_token, page = 1, page_size = 10 }, { rejectWithValue }) => {
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        page_size: String(page_size),
+      })
+
+      const response = await fetch(`${API_BASE_URL}/academics/exams?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + access_token,
+        },
+      })
+
+      if (!response.ok) {
+        return rejectWithValue(await getErrorMessage(response, 'Exams fetch failed'))
+      }
+
+      const data = await response.json().catch(() => ({}))
+      return data
+    } catch {
+      return rejectWithValue('Unable to fetch exams. Please try again.')
+    }
+  },
+)
+
+export const fetchCreateExam = createAsyncThunk(
+  'academic/fetchCreateExam',
+  async ({ school_id, name, exam_type, academic_year_id, class_id, start_date, end_date, access_token }, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/academics/exams`, {
+        method: 'POST',
+        headers: {
+          accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + access_token,
+        },
+        body: JSON.stringify({
+          school_id,
+          name,
+          exam_type,
+          academic_year_id,
+          class_id,
+          start_date,
+          end_date,
+        }),
+      })
+
+      if (!response.ok) {
+        return rejectWithValue(await getErrorMessage(response, 'Exam creation failed'))
+      }
+
+      const data = await response.json().catch(() => ({}))
+      return data
+    } catch {
+      return rejectWithValue('Unable to create exam. Please try again.')
+    }
+  },
+)
+
+export const fetchUpdateExam = createAsyncThunk(
+  'academic/fetchUpdateExam',
+  async ({ exam_id, school_id, name, exam_type, academic_year_id, class_id, start_date, end_date, access_token }, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/academics/exams/${exam_id}`, {
+        method: 'PUT',
+        headers: {
+          accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + access_token,
+        },
+        body: JSON.stringify({
+          school_id,
+          name,
+          exam_type,
+          academic_year_id,
+          class_id,
+          start_date,
+          end_date,
+        }),
+      })
+
+      if (!response.ok) {
+        return rejectWithValue(await getErrorMessage(response, 'Exam update failed'))
+      }
+
+      const data = await response.json().catch(() => ({}))
+      return data
+    } catch {
+      return rejectWithValue('Unable to update exam. Please try again.')
+    }
+  },
+)
+
+export const fetchDeleteExam = createAsyncThunk(
+  'academic/fetchDeleteExam',
+  async ({ exam_id, access_token }, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/academics/exams/${exam_id}`, {
+        method: 'DELETE',
+        headers: {
+          accept: 'application/json',
+          Authorization: 'Bearer ' + access_token,
+        },
+      })
+
+      if (!response.ok) {
+        return rejectWithValue(await getErrorMessage(response, 'Exam delete failed'))
+      }
+
+      return { exam_id }
+    } catch {
+      return rejectWithValue('Unable to delete exam. Please try again.')
     }
   },
 )
