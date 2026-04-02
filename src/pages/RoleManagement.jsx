@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { fetchCreateRole, fetchDeleteRole, fetchUpdateRole, rolesManagement } from '../store/roleSlice'
+import { DeleteActionIcon, EditActionIcon } from '../components/ActionIcons'
 import CustomPopup from '../components/CustomPopup'
 import CustomTable from '../components/CustomTable'
 
@@ -259,21 +260,25 @@ const RoleManagement = () => {
       header: 'Action',
       render: (role) => (
         <div className="role-management-table-actions">
-          <button
-            type="button"
-            className="role-management-action-btn role-management-action-btn-edit"
-            onClick={() => handleEditRole(role)}
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            className="role-management-action-btn role-management-action-btn-delete"
-            onClick={() => requestDeleteRole(role)}
-            disabled={actionLoadingId === String(role?.id)}
-          >
-            {actionLoadingId === String(role?.id) ? 'Deleting...' : 'Delete'}
-          </button>
+            <button
+              type="button"
+              className="role-management-action-btn role-management-action-btn-edit"
+              onClick={() => handleEditRole(role)}
+              aria-label={`Edit ${role?.name || 'role'}`}
+              title="Edit"
+            >
+              <EditActionIcon />
+            </button>
+            <button
+              type="button"
+              className="role-management-action-btn role-management-action-btn-delete"
+              onClick={() => requestDeleteRole(role)}
+              disabled={actionLoadingId === String(role?.id)}
+              aria-label={`Delete ${role?.name || 'role'}`}
+              title="Delete"
+            >
+              <DeleteActionIcon />
+            </button>
         </div>
       ),
     },

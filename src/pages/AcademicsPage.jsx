@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { DeleteActionIcon, EditActionIcon } from '../components/ActionIcons'
 import {
   fetchAcademicYears,
   fetchClasses,
@@ -213,6 +214,10 @@ function AcademicsPage() {
   const dispatch = useDispatch()
   const { user } = useSelector((state) => state.auth)
   const availableTabs = useMemo(() => getAcademicsTabsFromPermissions(user), [user])
+  const availableTabKeys = useMemo(
+    () => new Set(availableTabs.filter((tab) => tab.supported).map((tab) => tab.key)),
+    [availableTabs],
+  )
 
   const [activeTab, setActiveTab] = useState(TAB_KEYS.ACADEMIC_YEARS)
   const [academicYears, setAcademicYears] = useState([])
@@ -251,6 +256,9 @@ function AcademicsPage() {
   const isSubjectsTab = activeTab === TAB_KEYS.SUBJECTS
   const isExamsTab = activeTab === TAB_KEYS.EXAMS
   const isSupportedTab = Boolean(activeTabConfig.supported)
+  const canLoadAcademicYears = availableTabKeys.has(TAB_KEYS.ACADEMIC_YEARS)
+  const canLoadClasses = availableTabKeys.has(TAB_KEYS.CLASSES)
+  const canLoadSections = availableTabKeys.has(TAB_KEYS.SECTIONS)
 
   const tabPermissions = useMemo(() => {
     return getCrudPermissions(user, {
@@ -262,6 +270,34 @@ function AcademicsPage() {
   const canOpenCreatePopup = isSupportedTab && tabPermissions.canCreate
   const canShowCreateButton = isSupportedTab && tabPermissions.canCreate
   const showActionColumn = tabPermissions.canAdd || tabPermissions.canEdit || tabPermissions.canDelete
+  const renderCrudActionButtons = (item) => (
+    <div className="role-management-table-actions">
+      {tabPermissions.canEdit && (
+        <button
+          type="button"
+          className="role-management-action-btn role-management-action-btn-edit"
+          onClick={() => handleOpenEdit(item)}
+          aria-label={`Edit ${item?.name || currentTabLabel || 'item'}`}
+          title="Edit"
+        >
+          <EditActionIcon />
+        </button>
+      )}
+      {tabPermissions.canDelete && (
+        <button
+          type="button"
+          className="role-management-action-btn role-management-action-btn-delete"
+          onClick={() => requestDelete(item)}
+          disabled={actionLoadingId === String(item?.id)}
+          aria-label={`Delete ${item?.name || currentTabLabel || 'item'}`}
+          title="Delete"
+        >
+          <DeleteActionIcon />
+        </button>
+      )}
+      {!tabPermissions.canEdit && !tabPermissions.canDelete && <span>-</span>}
+    </div>
+  )
 
   const currentTableData = useMemo(() => {
     if (isClassesTab) return classesData
@@ -307,6 +343,14 @@ function AcademicsPage() {
 
   const refreshByTab = async (tab) => {
     if (!user?.access_token) return
+    if (!availableTabKeys.has(tab)) {
+      if (tab === TAB_KEYS.CLASSES) setClassesData([])
+      if (tab === TAB_KEYS.SECTIONS) setSectionsData([])
+      if (tab === TAB_KEYS.SUBJECTS) setSubjectsData([])
+      if (tab === TAB_KEYS.EXAMS) setExamsData([])
+      if (tab === TAB_KEYS.ACADEMIC_YEARS) setAcademicYears([])
+      return
+    }
 
     setIsLoading(true)
     setError('')
@@ -333,7 +377,6 @@ function AcademicsPage() {
         setExamsData(normalizeList(resp, 'exams'))
       } else if (tab === TAB_KEYS.ACADEMIC_YEARS) {
         const resp = await dispatch(fetchAcademicYears({ access_token: user.access_token })).unwrap()
-        console.log('academics years res:- ',resp)
         setAcademicYears(normalizeList(resp))
       } else {
         setAcademicYears([])
@@ -357,7 +400,7 @@ function AcademicsPage() {
   useEffect(() => {
     refreshByTab(activeTab)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dispatch, user?.access_token, activeTab])
+  }, [dispatch, user?.access_token, activeTab, availableTabKeys])
 
   useEffect(() => {
     const loadSchools = async () => {
@@ -384,22 +427,52 @@ function AcademicsPage() {
       if (!user?.access_token) return
 
       try {
-        const [classesResp, sectionsResp, academicYearsResp] = await Promise.all([
-          dispatch(fetchClasses({ access_token: user.access_token })).unwrap(),
-          dispatch(fetchSections({ access_token: user.access_token })).unwrap(),
-          dispatch(fetchAcademicYears({ access_token: user.access_token })).unwrap(),
-        ])
+        const requests = []
 
-        setClassesData(normalizeList(classesResp))
-        setSectionsData(normalizeList(sectionsResp))
-        setAcademicYears(normalizeList(academicYearsResp))
+        if (canLoadClasses) {
+          requests.push(
+            dispatch(fetchClasses({ access_token: user.access_token }))
+              .unwrap()
+              .then((resp) => {
+                setClassesData(normalizeList(resp))
+              }),
+          )
+        } else {
+          setClassesData([])
+        }
+
+        if (canLoadSections) {
+          requests.push(
+            dispatch(fetchSections({ access_token: user.access_token }))
+              .unwrap()
+              .then((resp) => {
+                setSectionsData(normalizeList(resp))
+              }),
+          )
+        } else {
+          setSectionsData([])
+        }
+
+        if (canLoadAcademicYears) {
+          requests.push(
+            dispatch(fetchAcademicYears({ access_token: user.access_token }))
+              .unwrap()
+              .then((resp) => {
+                setAcademicYears(normalizeList(resp))
+              }),
+          )
+        } else {
+          setAcademicYears([])
+        }
+
+        await Promise.all(requests)
       } catch {
         // Keep existing data when auxiliary options fail to load.
       }
     }
 
     loadClassFormOptions()
-  }, [dispatch, user?.access_token])
+  }, [canLoadAcademicYears, canLoadClasses, canLoadSections, dispatch, user?.access_token])
 
   useEffect(() => {
     setIsCreatePopupOpen(false)
@@ -864,30 +937,7 @@ function AcademicsPage() {
         classColumns.push({
           key: 'action',
           header: 'Action',
-          render: (item) => (
-            <div className="role-management-table-actions">
-              {tabPermissions.canEdit && (
-                <button
-                  type="button"
-                  className="role-management-action-btn role-management-action-btn-edit"
-                  onClick={() => handleOpenEdit(item)}
-                >
-                  Edit
-                </button>
-              )}
-              {tabPermissions.canDelete && (
-                <button
-                  type="button"
-                  className="role-management-action-btn role-management-action-btn-delete"
-                  onClick={() => requestDelete(item)}
-                  disabled={actionLoadingId === String(item?.id)}
-                >
-                  {actionLoadingId === String(item?.id) ? 'Deleting...' : 'Delete'}
-                </button>
-              )}
-              {!tabPermissions.canEdit && !tabPermissions.canDelete && <span>-</span>}
-            </div>
-          ),
+          render: (item) => renderCrudActionButtons(item),
         })
       }
 
@@ -905,30 +955,7 @@ function AcademicsPage() {
         sectionColumns.push({
           key: 'action',
           header: 'Action',
-          render: (item) => (
-            <div className="role-management-table-actions">
-              {tabPermissions.canEdit && (
-                <button
-                  type="button"
-                  className="role-management-action-btn role-management-action-btn-edit"
-                  onClick={() => handleOpenEdit(item)}
-                >
-                  Edit
-                </button>
-              )}
-              {tabPermissions.canDelete && (
-                <button
-                  type="button"
-                  className="role-management-action-btn role-management-action-btn-delete"
-                  onClick={() => requestDelete(item)}
-                  disabled={actionLoadingId === String(item?.id)}
-                >
-                  {actionLoadingId === String(item?.id) ? 'Deleting...' : 'Delete'}
-                </button>
-              )}
-              {!tabPermissions.canEdit && !tabPermissions.canDelete && <span>-</span>}
-            </div>
-          ),
+          render: (item) => renderCrudActionButtons(item),
         })
       }
 
@@ -945,30 +972,7 @@ function AcademicsPage() {
         subjectColumns.push({
           key: 'action',
           header: 'Action',
-          render: (item) => (
-            <div className="role-management-table-actions">
-              {tabPermissions.canEdit && (
-                <button
-                  type="button"
-                  className="role-management-action-btn role-management-action-btn-edit"
-                  onClick={() => handleOpenEdit(item)}
-                >
-                  Edit
-                </button>
-              )}
-              {tabPermissions.canDelete && (
-                <button
-                  type="button"
-                  className="role-management-action-btn role-management-action-btn-delete"
-                  onClick={() => requestDelete(item)}
-                  disabled={actionLoadingId === String(item?.id)}
-                >
-                  {actionLoadingId === String(item?.id) ? 'Deleting...' : 'Delete'}
-                </button>
-              )}
-              {!tabPermissions.canEdit && !tabPermissions.canDelete && <span>-</span>}
-            </div>
-          ),
+          render: (item) => renderCrudActionButtons(item),
         })
       }
 
@@ -997,30 +1001,7 @@ function AcademicsPage() {
         examColumns.push({
           key: 'action',
           header: 'Action',
-          render: (item) => (
-            <div className="role-management-table-actions">
-              {tabPermissions.canEdit && (
-                <button
-                  type="button"
-                  className="role-management-action-btn role-management-action-btn-edit"
-                  onClick={() => handleOpenEdit(item)}
-                >
-                  Edit
-                </button>
-              )}
-              {tabPermissions.canDelete && (
-                <button
-                  type="button"
-                  className="role-management-action-btn role-management-action-btn-delete"
-                  onClick={() => requestDelete(item)}
-                  disabled={actionLoadingId === String(item?.id)}
-                >
-                  {actionLoadingId === String(item?.id) ? 'Deleting...' : 'Delete'}
-                </button>
-              )}
-              {!tabPermissions.canEdit && !tabPermissions.canDelete && <span>-</span>}
-            </div>
-          ),
+          render: (item) => renderCrudActionButtons(item),
         })
       }
 
@@ -1048,30 +1029,7 @@ function AcademicsPage() {
       yearColumns.push({
         key: 'action',
         header: 'Action',
-        render: (item) => (
-          <div className="role-management-table-actions">
-            {tabPermissions.canEdit && (
-              <button
-                type="button"
-                className="role-management-action-btn role-management-action-btn-edit"
-                onClick={() => handleOpenEdit(item)}
-              >
-                Edit
-              </button>
-            )}
-            {tabPermissions.canDelete && (
-              <button
-                type="button"
-                className="role-management-action-btn role-management-action-btn-delete"
-                onClick={() => requestDelete(item)}
-                disabled={actionLoadingId === String(item?.id)}
-              >
-                {actionLoadingId === String(item?.id) ? 'Deleting...' : 'Delete'}
-              </button>
-            )}
-            {!tabPermissions.canEdit && !tabPermissions.canDelete && <span>-</span>}
-          </div>
-        ),
+        render: (item) => renderCrudActionButtons(item),
       })
     }
 

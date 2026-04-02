@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { DeleteActionIcon, EditActionIcon } from '../components/ActionIcons'
 import CustomPopup from '../components/CustomPopup'
 import CustomTable from '../components/CustomTable'
 import {
@@ -19,12 +20,17 @@ const normalizeList = (resp) => (
       ? resp
       : Array.isArray(resp?.data)
         ? resp.data
-        : []
+        : Array.isArray(resp?.vehicles)
+          ? resp.vehicles
+          : Array.isArray(resp?.staff)
+            ? resp.staff
+            : []
 )
 
 function TransportRoutesPage() {
   const dispatch = useDispatch()
   const { user } = useSelector((state) => state.auth)
+  const schoolId = Number(user?.user?.school_id ?? user?.school_id ?? 0)
   const [routesData, setRoutesData] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [actionLoadingId, setActionLoadingId] = useState('')
@@ -39,15 +45,19 @@ function TransportRoutesPage() {
   const [driverOptions, setDriverOptions] = useState([])
   const [formData, setFormData] = useState({
     name: '',
-    description: '',
-    vehicle_id: 0,
-    driver_user_id: 0,
+    code: '',
+    vehicle_number: '',
+    driver_name: '',
+    driver_phone: '',
+    fare: '',
   })
   const [editFormData, setEditFormData] = useState({
     name: '',
-    description: '',
-    vehicle_id: 0,
-    driver_user_id: 0,
+    code: '',
+    vehicle_number: '',
+    driver_name: '',
+    driver_phone: '',
+    fare: '',
   })
 
   const permissions = useMemo(() => {
@@ -86,19 +96,20 @@ function TransportRoutesPage() {
     const loadDropdownData = async () => {
       if (!user?.access_token) return
       try {
+         console.log('vehiclesResp:- ', user)
         const [vehiclesResp, staffResp] = await Promise.all([
           dispatch(fetchTransportVehicles({ access_token: user.access_token })).unwrap(),
-          dispatch(fetchStaffList({ access_token: user.access_token, page: 1, page_size: 200 })).unwrap(),
+          //dispatch(fetchStaffList({ access_token: user.access_token, page: 1, page_size: 200 })).unwrap(),
         ])
-
+        console.log('vehiclesResp:- ', vehiclesResp)
         const normalizedVehicles = normalizeList(vehiclesResp)
-        const normalizedStaff = normalizeList(staffResp)
+       // const normalizedStaff = normalizeList(staffResp)
 
         setVehicleOptions(normalizedVehicles)
-        setDriverOptions(normalizedStaff)
+     //   setDriverOptions(normalizedStaff)
       } catch {
         setVehicleOptions([])
-        setDriverOptions([])
+        // setDriverOptions([])
       }
     }
 
@@ -107,10 +118,14 @@ function TransportRoutesPage() {
 
   const validateForm = (values) => {
     const nextErrors = {}
-    if (!values.name.trim()) nextErrors.name = 'Route name is required.'
-    if (!values.description.trim()) nextErrors.description = 'Description is required.'
-    if (!values.vehicle_id || Number(values.vehicle_id) <= 0) nextErrors.vehicle_id = 'Vehicle id is required.'
-    if (!values.driver_user_id || Number(values.driver_user_id) <= 0) nextErrors.driver_user_id = 'Driver user id is required.'
+    if (!values.name.trim()) nextErrors.name = 'Name is required.'
+    if (!values.code.trim()) nextErrors.code = 'Code is required.'
+    if (!values.vehicle_number.trim()) nextErrors.vehicle_number = 'Vehicle number is required.'
+    if (!values.driver_name.trim()) nextErrors.driver_name = 'Driver name is required.'
+    if (!String(values.driver_phone || '').trim()) nextErrors.driver_phone = 'Driver phone is required.'
+    if (!/^\d{1,10}$/.test(String(values.driver_phone || ''))) nextErrors.driver_phone = 'Driver phone must be up to 10 digits.'
+    if (!String(values.fare || '').trim()) nextErrors.fare = 'Fare is required.'
+    else if (Number(values.fare) < 0) nextErrors.fare = 'Fare cannot be negative.'
     return nextErrors
   }
 
@@ -124,9 +139,11 @@ function TransportRoutesPage() {
     setIsCreatePopupOpen(false)
     setFormData({
       name: '',
-      description: '',
-      vehicle_id: 0,
-      driver_user_id: 0,
+      code: '',
+      vehicle_number: '',
+      driver_name: '',
+      driver_phone: '',
+      fare: '',
     })
     setFormError({})
   }
@@ -135,22 +152,82 @@ function TransportRoutesPage() {
     setEditingRoute(null)
     setEditFormData({
       name: '',
-      description: '',
-      vehicle_id: 0,
-      driver_user_id: 0,
+      code: '',
+      vehicle_number: '',
+      driver_name: '',
+      driver_phone: '',
+      fare: '',
     })
     setFormError({})
   }
 
   const handleInputChange = (event) => {
     const { name, value, type } = event.target
-    setFormData((prev) => ({ ...prev, [name]: type === 'number' ? Number(value) : value }))
+    if (name === 'vehicle_number') {
+      const selectedVehicle = vehicleOptions.find((vehicle) => String(vehicle?.vehicle_number || '') === String(value || ''))
+      setFormData((prev) => ({
+        ...prev,
+        vehicle_number: value,
+        code: selectedVehicle?.code || prev.code,
+        driver_name: selectedVehicle?.driver_name || prev.driver_name,
+        driver_phone: String(selectedVehicle?.driver_phone || prev.driver_phone || ''),
+        fare: selectedVehicle?.fare !== undefined && selectedVehicle?.fare !== null
+          ? String(selectedVehicle.fare)
+          : prev.fare,
+      }))
+      setFormError((prev) => ({
+        ...prev,
+        vehicle_number: '',
+        code: '',
+        driver_name: '',
+        driver_phone: '',
+        fare: '',
+        submit: '',
+      }))
+      return
+    }
+
+    const nextValue = name === 'driver_phone'
+      ? String(value ?? '').replace(/\D/g, '').slice(0, 10)
+      : type === 'number'
+        ? value
+        : value
+    setFormData((prev) => ({ ...prev, [name]: nextValue }))
     setFormError((prev) => ({ ...prev, [name]: '', submit: '' }))
   }
 
   const handleEditInputChange = (event) => {
     const { name, value, type } = event.target
-    setEditFormData((prev) => ({ ...prev, [name]: type === 'number' ? Number(value) : value }))
+    if (name === 'vehicle_number') {
+      const selectedVehicle = vehicleOptions.find((vehicle) => String(vehicle?.vehicle_number || '') === String(value || ''))
+      setEditFormData((prev) => ({
+        ...prev,
+        vehicle_number: value,
+        code: selectedVehicle?.code || prev.code,
+        driver_name: selectedVehicle?.driver_name || prev.driver_name,
+        driver_phone: String(selectedVehicle?.driver_phone || prev.driver_phone || ''),
+        fare: selectedVehicle?.fare !== undefined && selectedVehicle?.fare !== null
+          ? String(selectedVehicle.fare)
+          : prev.fare,
+      }))
+      setFormError((prev) => ({
+        ...prev,
+        vehicle_number: '',
+        code: '',
+        driver_name: '',
+        driver_phone: '',
+        fare: '',
+        editSubmit: '',
+      }))
+      return
+    }
+
+    const nextValue = name === 'driver_phone'
+      ? String(value ?? '').replace(/\D/g, '').slice(0, 10)
+      : type === 'number'
+        ? value
+        : value
+    setEditFormData((prev) => ({ ...prev, [name]: nextValue }))
     setFormError((prev) => ({ ...prev, [name]: '', editSubmit: '' }))
   }
 
@@ -171,7 +248,9 @@ function TransportRoutesPage() {
     try {
       await dispatch(
         fetchCreateTransportRoute({
+          school_id: schoolId,
           ...formData,
+          fare: Number(formData.fare),
           access_token: user.access_token,
         }),
       ).unwrap()
@@ -191,9 +270,11 @@ function TransportRoutesPage() {
     setEditingRoute(route)
     setEditFormData({
       name: route?.name || '',
-      description: route?.description || '',
-      vehicle_id: Number(route?.vehicle_id ?? 0),
-      driver_user_id: Number(route?.driver_user_id ?? 0),
+      code: route?.code || '',
+      vehicle_number: route?.vehicle_number || '',
+      driver_name: route?.driver_name || '',
+      driver_phone: String(route?.driver_phone || ''),
+      fare: String(route?.fare ?? ''),
     })
     setFormError({})
     setMessage('')
@@ -217,7 +298,9 @@ function TransportRoutesPage() {
       await dispatch(
         fetchUpdateTransportRoute({
           id: editingRoute.id,
+          school_id: Number(editingRoute?.school_id ?? schoolId),
           ...editFormData,
+          fare: Number(editFormData.fare),
           access_token: user.access_token,
         }),
       ).unwrap()
@@ -271,12 +354,8 @@ function TransportRoutesPage() {
   const routeColumns = [
     { key: 'id', header: 'Route Id' },
     { key: 'name', header: 'Route Name' },
-    { key: 'description', header: 'Description' },
     { key: 'vehicle_number', header: 'Vehicle Number' },
     { key: 'driver_name', header: 'Driver Name' },
-    { key: 'is_active', header: 'Is Active' },
-    { key: 'stops_count', header: 'Stops Count' },
-    { key: 'students_count', header: 'Students Count' },
   ]
 
   if (showActionColumn) {
@@ -290,8 +369,10 @@ function TransportRoutesPage() {
               type="button"
               className="role-management-action-btn role-management-action-btn-edit"
               onClick={() => handleEditRoute(route)}
+              aria-label={`Edit ${route?.name || 'route'}`}
+              title="Edit"
             >
-              Edit
+              <EditActionIcon />
             </button>
           )}
           {permissions.canDelete && (
@@ -300,8 +381,10 @@ function TransportRoutesPage() {
               className="role-management-action-btn role-management-action-btn-delete"
               onClick={() => requestDeleteRoute(route)}
               disabled={actionLoadingId === String(route?.id)}
+              aria-label={`Delete ${route?.name || 'route'}`}
+              title="Delete"
             >
-              {actionLoadingId === String(route?.id) ? 'Deleting...' : 'Delete'}
+              <DeleteActionIcon />
             </button>
           )}
         </div>
@@ -360,7 +443,7 @@ function TransportRoutesPage() {
         >
           <form className="role-management-form" onSubmit={handleCreateRoute}>
             <div className="role-management-field">
-              <label htmlFor="route-name" className="role-management-label">Route Name</label>
+              <label htmlFor="route-name" className="role-management-label">Name</label>
               <input
                 id="route-name"
                 name="name"
@@ -374,57 +457,86 @@ function TransportRoutesPage() {
             </div>
 
             <div className="role-management-field">
-              <label htmlFor="route-description" className="role-management-label">Description</label>
+              <label htmlFor="route-code" className="role-management-label">Code</label>
               <input
-                id="route-description"
-                name="description"
+                id="route-code"
+                name="code"
                 type="text"
                 className="role-management-input"
-                value={formData.description}
+                value={formData.code}
                 onChange={handleInputChange}
-                placeholder="Enter description"
+                placeholder="Enter code"
               />
-              {formError.description && <p className="role-management-field-error">{formError.description}</p>}
+              {formError.code && <p className="role-management-field-error">{formError.code}</p>}
             </div>
 
             <div className="role-management-field">
-              <label htmlFor="route-vehicle_id" className="role-management-label">Vehicle Id</label>
+              <label htmlFor="route-vehicle-number" className="role-management-label">Vehicle Number</label>
               <select
-                id="route-vehicle_id"
-                name="vehicle_id"
+                id="route-vehicle-number"
+                name="vehicle_number"
                 className="role-management-input"
-                value={formData.vehicle_id}
+                value={formData.vehicle_number}
                 onChange={handleInputChange}
               >
-                <option value={0}>Select vehicle</option>
-                {vehicleOptions.map((vehicle) => (
-                  <option key={vehicle?.id} value={Number(vehicle?.id ?? 0)}>
-                    {vehicle?.vehicle_number || vehicle?.name || `Vehicle #${vehicle?.id}`}
-                  </option>
-                ))}
+                <option value="">Select vehicle number</option>
+                {vehicleOptions.map((vehicle, index) => {
+                  const optionValue = String(vehicle?.vehicle_number || '')
+                  if (!optionValue) return null
+
+                  return (
+                    <option key={vehicle?.id ?? `${optionValue}-${index}`} value={optionValue}>
+                      {optionValue}
+                    </option>
+                  )
+                })}
               </select>
-              {formError.vehicle_id && <p className="role-management-field-error">{formError.vehicle_id}</p>}
+              {formError.vehicle_number && <p className="role-management-field-error">{formError.vehicle_number}</p>}
             </div>
 
             <div className="role-management-field">
-              <label htmlFor="route-driver_user_id" className="role-management-label">Driver User Id</label>
-              <select
-                id="route-driver_user_id"
-                name="driver_user_id"
+              <label htmlFor="route-driver-name" className="role-management-label">Driver Name</label>
+              <input
+                id="route-driver-name"
+                name="driver_name"
+                type="text"
                 className="role-management-input"
-                value={formData.driver_user_id}
+                value={formData.driver_name}
                 onChange={handleInputChange}
-              >
-                <option value={0}>Select driver</option>
-                {driverOptions.map((staff) => (
-                  <option key={staff?.id} value={Number(staff?.user_id ?? 0)}>
-                    {staff?.first_name || staff?.last_name
-                      ? `${staff?.first_name || ''} ${staff?.last_name || ''}`.trim()
-                      : staff?.name || `User #${staff?.user_id ?? staff?.id}`}
-                  </option>
-                ))}
-              </select>
-              {formError.driver_user_id && <p className="role-management-field-error">{formError.driver_user_id}</p>}
+                placeholder="Enter driver name"
+              />
+              {formError.driver_name && <p className="role-management-field-error">{formError.driver_name}</p>}
+            </div>
+
+            <div className="role-management-field">
+              <label htmlFor="route-driver-phone" className="role-management-label">Driver Phone</label>
+              <input
+                id="route-driver-phone"
+                name="driver_phone"
+                type="text"
+                className="role-management-input"
+                value={formData.driver_phone}
+                onChange={handleInputChange}
+                inputMode="numeric"
+                maxLength={10}
+                placeholder="Enter driver phone"
+              />
+              {formError.driver_phone && <p className="role-management-field-error">{formError.driver_phone}</p>}
+            </div>
+
+            <div className="role-management-field">
+              <label htmlFor="route-fare" className="role-management-label">Fare</label>
+              <input
+                id="route-fare"
+                name="fare"
+                type="number"
+                className="role-management-input"
+                value={formData.fare}
+                onChange={handleInputChange}
+                min="0"
+                placeholder="Enter fare"
+              />
+              {formError.fare && <p className="role-management-field-error">{formError.fare}</p>}
             </div>
 
             <div className="role-management-form-actions">
@@ -455,7 +567,7 @@ function TransportRoutesPage() {
             <h3 id="edit-route-title" className="custom-popup-title">Edit Route</h3>
             <form className="role-management-form" onSubmit={handleUpdateRoute}>
               <div className="role-management-field">
-                <label htmlFor="edit-route-name" className="role-management-label">Route Name</label>
+                <label htmlFor="edit-route-name" className="role-management-label">Name</label>
                 <input
                   id="edit-route-name"
                   name="name"
@@ -469,57 +581,86 @@ function TransportRoutesPage() {
               </div>
 
               <div className="role-management-field">
-                <label htmlFor="edit-route-description" className="role-management-label">Description</label>
+                <label htmlFor="edit-route-code" className="role-management-label">Code</label>
                 <input
-                  id="edit-route-description"
-                  name="description"
+                  id="edit-route-code"
+                  name="code"
                   type="text"
                   className="role-management-input"
-                  value={editFormData.description}
+                  value={editFormData.code}
                   onChange={handleEditInputChange}
-                  placeholder="Enter description"
+                  placeholder="Enter code"
                 />
-                {formError.description && <p className="role-management-field-error">{formError.description}</p>}
+                {formError.code && <p className="role-management-field-error">{formError.code}</p>}
               </div>
 
               <div className="role-management-field">
-                <label htmlFor="edit-route-vehicle_id" className="role-management-label">Vehicle Id</label>
+                <label htmlFor="edit-route-vehicle-number" className="role-management-label">Vehicle Number</label>
                 <select
-                  id="edit-route-vehicle_id"
-                  name="vehicle_id"
+                  id="edit-route-vehicle-number"
+                  name="vehicle_number"
                   className="role-management-input"
-                  value={editFormData.vehicle_id}
+                  value={editFormData.vehicle_number}
                   onChange={handleEditInputChange}
                 >
-                  <option value={0}>Select vehicle</option>
-                  {vehicleOptions.map((vehicle) => (
-                    <option key={vehicle?.id} value={Number(vehicle?.id ?? 0)}>
-                      {vehicle?.vehicle_number || vehicle?.name || `Vehicle #${vehicle?.id}`}
-                    </option>
-                  ))}
+                  <option value="">Select vehicle number</option>
+                  {vehicleOptions.map((vehicle, index) => {
+                    const optionValue = String(vehicle?.vehicle_number || '')
+                    if (!optionValue) return null
+
+                    return (
+                      <option key={vehicle?.id ?? `${optionValue}-${index}`} value={optionValue}>
+                        {optionValue}
+                      </option>
+                    )
+                  })}
                 </select>
-                {formError.vehicle_id && <p className="role-management-field-error">{formError.vehicle_id}</p>}
+                {formError.vehicle_number && <p className="role-management-field-error">{formError.vehicle_number}</p>}
               </div>
 
               <div className="role-management-field">
-                <label htmlFor="edit-route-driver_user_id" className="role-management-label">Driver User Id</label>
-                <select
-                  id="edit-route-driver_user_id"
-                  name="driver_user_id"
+                <label htmlFor="edit-route-driver-name" className="role-management-label">Driver Name</label>
+                <input
+                  id="edit-route-driver-name"
+                  name="driver_name"
+                  type="text"
                   className="role-management-input"
-                  value={editFormData.driver_user_id}
+                  value={editFormData.driver_name}
                   onChange={handleEditInputChange}
-                >
-                  <option value={0}>Select driver</option>
-                  {driverOptions.map((staff) => (
-                    <option key={staff?.id} value={Number(staff?.user_id ?? 0)}>
-                      {staff?.first_name || staff?.last_name
-                        ? `${staff?.first_name || ''} ${staff?.last_name || ''}`.trim()
-                        : staff?.name || `User #${staff?.user_id ?? staff?.id}`}
-                    </option>
-                  ))}
-                </select>
-                {formError.driver_user_id && <p className="role-management-field-error">{formError.driver_user_id}</p>}
+                  placeholder="Enter driver name"
+                />
+                {formError.driver_name && <p className="role-management-field-error">{formError.driver_name}</p>}
+              </div>
+
+              <div className="role-management-field">
+                <label htmlFor="edit-route-driver-phone" className="role-management-label">Driver Phone</label>
+                <input
+                  id="edit-route-driver-phone"
+                  name="driver_phone"
+                  type="text"
+                  className="role-management-input"
+                  value={editFormData.driver_phone}
+                  onChange={handleEditInputChange}
+                  inputMode="numeric"
+                  maxLength={10}
+                  placeholder="Enter driver phone"
+                />
+                {formError.driver_phone && <p className="role-management-field-error">{formError.driver_phone}</p>}
+              </div>
+
+              <div className="role-management-field">
+                <label htmlFor="edit-route-fare" className="role-management-label">Fare</label>
+                <input
+                  id="edit-route-fare"
+                  name="fare"
+                  type="number"
+                  className="role-management-input"
+                  value={editFormData.fare}
+                  onChange={handleEditInputChange}
+                  min="0"
+                  placeholder="Enter fare"
+                />
+                {formError.fare && <p className="role-management-field-error">{formError.fare}</p>}
               </div>
 
               <div className="role-management-form-actions">

@@ -86,21 +86,24 @@ export const fetchCreateStudent = createAsyncThunk(
   async ({
     first_name,
     last_name,
+    username,
+    password,
+    role_id,
     date_of_birth,
     gender,
     blood_group,
     address,
     phone,
-    parent_name,
-    parent_phone,
-    parent_email,
+    guardian_name,
+    guardian_phone,
+    email,
     class_id,
     section_id,
     academic_year_id,
     admission_date,
     admission_no,
     access_token,
-    school_id
+   // school_id
   }, { rejectWithValue }) => {
     try {
       const response = await fetch(`${API_BASE_URL}/students`, {
@@ -113,19 +116,24 @@ export const fetchCreateStudent = createAsyncThunk(
         body: JSON.stringify({
           first_name,
           last_name,
+          userDetails: {
+            username,
+            password,
+            role_id,
+          },
           date_of_birth,
           gender,
           blood_group,
           address,
           phone,
-          parent_name,
-          parent_phone,
-          parent_email,
+          guardian_name,
+          guardian_phone,
+          email,
           class_id,
           section_id,
           academic_year_id,
           admission_date,
-          school_id,
+         // school_id,
           admission_no
         }),
       })

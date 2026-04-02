@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { DeleteActionIcon, EditActionIcon } from '../components/ActionIcons'
 import {
   fetchCreateStaffAttendance,
   fetchCreateStaff,
@@ -507,23 +508,27 @@ function StaffPage() {
       render: (staff) => (
         <div className="role-management-table-actions">
           {permissions.canUpdate && (
-            <button
-              type="button"
-              className="role-management-action-btn role-management-action-btn-edit"
-              onClick={() => handleEditStaff(staff)}
-            >
-              Edit
-            </button>
+              <button
+                type="button"
+                className="role-management-action-btn role-management-action-btn-edit"
+                onClick={() => handleEditStaff(staff)}
+                aria-label={`Edit ${staff?.first_name || 'staff'}`}
+                title="Edit"
+              >
+                <EditActionIcon />
+              </button>
           )}
           {permissions.canDelete && (
             <button
               type="button"
-              className="role-management-action-btn role-management-action-btn-delete"
-              onClick={() => requestDeleteStaff(staff)}
-              disabled={actionLoadingId === String(staff?.id)}
-            >
-              {actionLoadingId === String(staff?.id) ? 'Deleting...' : 'Delete'}
-            </button>
+                className="role-management-action-btn role-management-action-btn-delete"
+                onClick={() => requestDeleteStaff(staff)}
+                disabled={actionLoadingId === String(staff?.id)}
+                aria-label={`Delete ${staff?.first_name || 'staff'}`}
+                title="Delete"
+              >
+                <DeleteActionIcon />
+              </button>
           )}
         </div>
       ),

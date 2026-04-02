@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { EditActionIcon } from '../components/ActionIcons'
 import CustomPopup from '../components/CustomPopup'
 import CustomTable from '../components/CustomTable'
 import { fetchOrganizations } from '../store/organizationsSlice'
@@ -36,6 +37,10 @@ const getUserRole = (user) => {
       .map((rolename) => rolename?.display_name || rolename?.name || '')
       .filter(Boolean)
     return roleLabels.length > 0 ? roleLabels.join(', ') : '-'
+  }
+
+  if (typeof user?.role === 'string' && user.role.trim()) {
+    return user.role.trim()
   }
 
   return user?.role?.display_name || user?.role?.name || '-'
@@ -284,7 +289,6 @@ function UserManagementPage() {
       render: (item) => getUserDisplayName(item),
     },
     { key: 'email', header: 'Email' },
-    { key: 'phone', header: 'Phone' },
     {
       key: 'role',
       header: 'Role',
@@ -316,7 +320,7 @@ function UserManagementPage() {
           aria-label="Edit user status"
           title="Edit user status"
         >
-          Edit
+          <EditActionIcon />
         </button>
       ),
     })

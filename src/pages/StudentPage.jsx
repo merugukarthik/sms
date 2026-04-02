@@ -4,6 +4,7 @@ import CustomPopup from '../components/CustomPopup'
 import CustomTable from '../components/CustomTable'
 import { fetchAcademicYears, fetchClasses, fetchSections } from '../store/academicSlice'
 import { fetchCreateFinanceAssignment } from '../store/feesSlice'
+import { rolesManagement } from '../store/roleSlice'
 import { fetchCreateStudent, fetchPromoteStudent, fetchStudentsList } from '../store/studentsSlice'
 import { getCrudPermissions } from '../utils/permissions'
 
@@ -59,10 +60,20 @@ function StudentPage() {
 
   const dispatch = useDispatch()
   const { user } = useSelector((state) => state.auth)
+  const loginData = useSelector((state) => state.auth.loginData)
   const permissions = useMemo(
     () => getCrudPermissions(user, { moduleMatchers: ['student'] }),
     [user],
   )
+  const hasStudentLogin = useMemo(() => (
+    Number(
+      user?.student_id
+      ?? user?.user?.student_id
+      ?? loginData?.student_id
+      ?? loginData?.user?.student_id
+      ?? 0
+    ) > 0
+  ), [loginData, user])
   console.log('school id:- ', user.user.school_id)
 
   const [studentsData, setStudentsData] = useState([])
@@ -75,6 +86,7 @@ function StudentPage() {
   const [classesData, setClassesData] = useState([])
   const [sectionsData, setSectionsData] = useState([])
   const [academicYearsData, setAcademicYearsData] = useState([])
+  const [rolesData, setRolesData] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -83,6 +95,7 @@ function StudentPage() {
   const [isCreatePopupOpen, setIsCreatePopupOpen] = useState(false)
   const [isAddFeePopupOpen, setIsAddFeePopupOpen] = useState(false)
   const [isPromotePopupOpen, setIsPromotePopupOpen] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const [selectedStudentForFee, setSelectedStudentForFee] = useState(null)
   const [selectedStudentForPromotion, setSelectedStudentForPromotion] = useState(null)
   const [formError, setFormError] = useState({})
@@ -92,14 +105,17 @@ function StudentPage() {
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
+    username: '',
+    password: '',
+    role_id: '',
     date_of_birth: '',
     gender: '',
     blood_group: '',
     address: '',
     phone: '',
-    parent_name: '',
-    parent_phone: '',
-    parent_email: '',
+    guardian_name: '',
+    guardian_phone: '',
+    email: '',
     class_id: '',
     section_id: '',
     academic_year_id: '',
@@ -235,20 +251,41 @@ function StudentPage() {
     loadClassAndSectionOptions()
   }, [dispatch, user?.access_token])
 
+  useEffect(() => {
+    const loadRoles = async () => {
+      if (!user?.access_token) return
+
+      try {
+        const resp = await dispatch(rolesManagement({
+          access_token: user.access_token,
+        })).unwrap()
+
+        setRolesData(getNormalizedList(resp))
+      } catch {
+        setRolesData([])
+      }
+    }
+
+    loadRoles()
+  }, [dispatch, user?.access_token])
+
   const validateForm = (values) => {
     const nextErrors = {}
     if (!values.first_name.trim()) nextErrors.first_name = 'First name is required.'
     if (!values.last_name.trim()) nextErrors.last_name = 'Last name is required.'
+    if (!values.username.trim()) nextErrors.username = 'Username is required.'
+    if (!values.password.trim()) nextErrors.password = 'Password is required.'
+    if (!String(values.role_id || '').trim()) nextErrors.role_id = 'Role is required.'
     if (!values.date_of_birth) nextErrors.date_of_birth = 'Date of birth is required.'
     if (!values.gender.trim()) nextErrors.gender = 'Gender is required.'
     if (!values.blood_group.trim()) nextErrors.blood_group = 'Blood group is required.'
     if (!values.address.trim()) nextErrors.address = 'Address is required.'
     if (!values.phone.trim()) nextErrors.phone = 'Phone is required.'
     if (values.phone && !/^\d{1,10}$/.test(values.phone)) nextErrors.phone = 'Phone number must be up to 10 digits.'
-    if (!values.parent_name.trim()) nextErrors.parent_name = 'Parent name is required.'
-    if (!values.parent_phone.trim()) nextErrors.parent_phone = 'Parent phone is required.'
-    if (values.parent_phone && !/^\d{1,10}$/.test(values.parent_phone)) nextErrors.parent_phone = 'Parent phone number must be up to 10 digits.'
-    if (!values.parent_email.trim()) nextErrors.parent_email = 'Parent email is required.'
+    if (!values.guardian_name.trim()) nextErrors.guardian_name = 'Parent name is required.'
+    if (!values.guardian_phone.trim()) nextErrors.guardian_phone = 'Parent phone is required.'
+    if (values.guardian_phone && !/^\d{1,10}$/.test(values.guardian_phone)) nextErrors.guardian_phone = 'Parent phone number must be up to 10 digits.'
+    if (!values.email.trim()) nextErrors.email = 'Parent email is required.'
     if (!String(values.class_id ?? '').trim()) nextErrors.class_id = 'Class is required.'
     if (!String(values.section_id ?? '').trim()) nextErrors.section_id = 'Section is required.'
     if (!String(values.academic_year_id ?? '').trim()) nextErrors.academic_year_id = 'Academic year is required.'
@@ -265,17 +302,21 @@ function StudentPage() {
 
   const closeCreatePopup = () => {
     setIsCreatePopupOpen(false)
+    setShowPassword(false)
     setFormData({
       first_name: '',
       last_name: '',
+      username: '',
+      password: '',
+      role_id: '',
       date_of_birth: '',
       gender: '',
       blood_group: '',
       address: '',
       phone: '',
-      parent_name: '',
-      parent_phone: '',
-      parent_email: '',
+      guardian_name: '',
+      guardian_phone: '',
+      email: '',
       class_id: '',
       section_id: '',
       academic_year_id: '',
@@ -303,6 +344,7 @@ function StudentPage() {
 
   const handleCreateStudent = async (event) => {
     event.preventDefault()
+    console.log('user data:- ',user)
     const validationErrors = validateForm(formData)
     if (Object.keys(validationErrors).length > 0) {
       setFormError(validationErrors)
@@ -319,10 +361,12 @@ function StudentPage() {
       await dispatch(
         fetchCreateStudent({
           ...formData,
+          username: formData.username.trim(),
+          role_id: formData.role_id,
           class_id: Number(formData.class_id),
           section_id: Number(formData.section_id),
           academic_year_id: Number(formData.academic_year_id),
-          school_id: user.user.school_id,
+          //school_id: 0 ,
           access_token: user.access_token,
         }),
       ).unwrap()
@@ -529,8 +573,8 @@ function StudentPage() {
     { key: 'gender', header: 'Gender' },
     { key: 'class_id', header: 'Class Id' },
     { key: 'section_id', header: 'Section Id' },
-    { key: 'status', header: 'Status' },
-    {
+    // { key: 'status', header: 'Status' },
+    ...(!hasStudentLogin ? [{
       key: 'actions',
       header: 'Actions',
       render: (student) => (
@@ -551,7 +595,7 @@ function StudentPage() {
           </button>
         </div>
       ),
-    },
+    }] : []),
   ]
 
   return (
@@ -605,6 +649,14 @@ function StudentPage() {
             aria-modal="true"
             aria-labelledby="create-student-title"
           >
+            <button
+              type="button"
+              className="custom-popup-close-btn"
+              onClick={closeCreatePopup}
+              aria-label="Close popup"
+            >
+              x
+            </button>
             <h3 id="create-student-title" className="custom-popup-title">Create Student</h3>
             <form className="role-management-form role-management-form-two-col" onSubmit={handleCreateStudent}>
               <div className="role-management-field">
@@ -710,47 +762,47 @@ function StudentPage() {
               </div>
 
               <div className="role-management-field">
-                <label htmlFor="student-parent_name" className="role-management-label">Parent Name</label>
+                <label htmlFor="student-guardian_name" className="role-management-label">Parent Name</label>
                 <input
-                  id="student-parent_name"
-                  name="parent_name"
+                  id="student-guardian_name"
+                  name="guardian_name"
                   type="text"
                   className="role-management-input"
-                  value={formData.parent_name}
+                  value={formData.guardian_name}
                   onChange={handleInputChange}
-                  placeholder="Enter parent name"
+                  placeholder="Enter Guardian name"
                 />
-                {formError.parent_name && <p className="role-management-field-error">{formError.parent_name}</p>}
+                {formError.guardian_name && <p className="role-management-field-error">{formError.guardian_name}</p>}
               </div>
 
               <div className="role-management-field">
-                <label htmlFor="student-parent_phone" className="role-management-label">Parent Phone</label>
+                <label htmlFor="student-guardian_phone" className="role-management-label">Parent Phone</label>
                 <input
-                  id="student-parent_phone"
-                  name="parent_phone"
+                  id="student-guardian_phone"
+                  name="guardian_phone"
                   type="text"
                   className="role-management-input"
-                  value={formData.parent_phone}
+                  value={formData.guardian_phone}
                   onChange={handleInputChange}
                   inputMode="numeric"
                   maxLength={10}
                   placeholder="Enter parent phone"
                 />
-                {formError.parent_phone && <p className="role-management-field-error">{formError.parent_phone}</p>}
+                {formError.guardian_phone && <p className="role-management-field-error">{formError.guardian_phone}</p>}
               </div>
 
               <div className="role-management-field">
-                <label htmlFor="student-parent_email" className="role-management-label">Parent Email</label>
+                <label htmlFor="student-email" className="role-management-label">Parent Email</label>
                 <input
-                  id="student-parent_email"
-                  name="parent_email"
+                  id="student-email"
+                  name="email"
                   type="email"
                   className="role-management-input"
-                  value={formData.parent_email}
+                  value={formData.email}
                   onChange={handleInputChange}
                   placeholder="Enter parent email"
                 />
-                {formError.parent_email && <p className="role-management-field-error">{formError.parent_email}</p>}
+                {formError.email && <p className="role-management-field-error">{formError.email}</p>}
               </div>
               <div className="role-management-field">
                 <label htmlFor="student-class_id" className="role-management-label">Class Id</label>
@@ -826,6 +878,101 @@ function StudentPage() {
                   onChange={handleInputChange}
                 />
                 {formError.admission_no && <p className="role-management-field-error">{formError.admission_no}</p>}
+              </div>
+
+              <div className="organization-form-section-title" style={{ gridColumn: '1 / -1', marginTop: '0.5rem' }}>
+                Login Information
+              </div>
+
+              <div className="role-management-field">
+                <label htmlFor="student-username" className="role-management-label">Username</label>
+                <input
+                  id="student-username"
+                  name="username"
+                  type="text"
+                  className="role-management-input"
+                  value={formData.username}
+                  onChange={handleInputChange}
+                  placeholder="Enter username"
+                />
+                {formError.username && <p className="role-management-field-error">{formError.username}</p>}
+              </div>
+
+              <div className="role-management-field">
+                <label htmlFor="student-password" className="role-management-label">Password</label>
+                <div className="password-input-wrapper">
+                  <input
+                    id="student-password"
+                    name="password"
+                    type={showPassword ? 'text' : 'password'}
+                    className="role-management-input"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    placeholder="Enter password"
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle-btn"
+                    onClick={() => setShowPassword((current) => !current)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? (
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        width="18"
+                        height="18"
+                        aria-hidden="true"
+                      >
+                        <path d="M10.58 10.58a2 2 0 0 0 2.83 2.83" />
+                        <path d="M9.88 4.24A10.94 10.94 0 0 1 12 4c5 0 9.27 3.11 11 7.5a11.83 11.83 0 0 1-2.17 3.31" />
+                        <path d="M6.61 6.61A13.53 13.53 0 0 0 1 11.5C2.73 15.89 7 19 12 19a11 11 0 0 0 5.39-1.39" />
+                        <line x1="2" y1="2" x2="22" y2="22" />
+                      </svg>
+                    ) : (
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        width="18"
+                        height="18"
+                        aria-hidden="true"
+                      >
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+                {formError.password && <p className="role-management-field-error">{formError.password}</p>}
+              </div>
+
+              <div className="role-management-field">
+                <label htmlFor="student-role_id" className="role-management-label">Role</label>
+                <select
+                  id="student-role_id"
+                  name="role_id"
+                  className="role-management-select"
+                  value={formData.role_id}
+                  onChange={handleInputChange}
+                >
+                  <option value="">Select role</option>
+                  {rolesData.map((role, index) => (
+                    <option key={role?.id ?? index} value={role?.role_id ?? role?.id ?? ''}>
+                      {role?.name || `Role ${index + 1}`}
+                    </option>
+                  ))}
+                </select>
+                {formError.role_id && <p className="role-management-field-error">{formError.role_id}</p>}
               </div>
 
               <div className="role-management-form-actions" style={{ gridColumn: '1 / -1' }}>

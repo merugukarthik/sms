@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { DeleteActionIcon, EditActionIcon } from '../components/ActionIcons'
 import CustomPopup from '../components/CustomPopup'
 import CustomTable from '../components/CustomTable'
 import {
@@ -635,7 +636,7 @@ function FeesPage() {
       { key: 'id', header: 'Fee Type Id' },
       { key: 'code', header: 'Code' },
       { key: 'name', header: 'Name' },
-      { key: 'description', header: 'Description' },
+      // { key: 'description', header: 'Description' },
     ]
 
     if (permissions.canUpdate || permissions.canDelete) {
@@ -645,23 +646,27 @@ function FeesPage() {
         render: (item) => (
           <div className="role-management-table-actions">
             {permissions.canUpdate && (
-              <button
-                type="button"
-                className="role-management-action-btn role-management-action-btn-edit"
-                onClick={() => openEditFeeTypePopup(item)}
-              >
-                Edit
-              </button>
+                <button
+                  type="button"
+                  className="role-management-action-btn role-management-action-btn-edit"
+                  onClick={() => openEditFeeTypePopup(item)}
+                  aria-label={`Edit ${item?.name || 'fee type'}`}
+                  title="Edit"
+                >
+                  <EditActionIcon />
+                </button>
             )}
             {permissions.canDelete && (
               <button
                 type="button"
-                className="role-management-action-btn role-management-action-btn-delete"
-                onClick={() => setDeleteFeeTypeTarget(item)}
-                disabled={actionLoadingId === String(item?.id ?? item?.fee_type_id)}
-              >
-                {actionLoadingId === String(item?.id ?? item?.fee_type_id) ? 'Deleting...' : 'Delete'}
-              </button>
+                  className="role-management-action-btn role-management-action-btn-delete"
+                  onClick={() => setDeleteFeeTypeTarget(item)}
+                  disabled={actionLoadingId === String(item?.id ?? item?.fee_type_id)}
+                  aria-label={`Delete ${item?.name || 'fee type'}`}
+                  title="Delete"
+                >
+                  <DeleteActionIcon />
+                </button>
             )}
           </div>
         ),

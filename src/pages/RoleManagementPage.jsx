@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { DeleteActionIcon, EditActionIcon } from '../components/ActionIcons'
 import CustomPopup from '../components/CustomPopup'
 import CustomTable from '../components/CustomTable'
 import { fetchOrganizations } from '../store/organizationsSlice'
@@ -182,7 +183,7 @@ function RoleManagementPage() {
         render: (role) => (
           <div className="role-management-table-actions">
             {permissions.canUpdate && (
-              <button type="button" className="role-management-action-btn role-management-action-btn-edit" onClick={() => openEdit(role)}>Edit</button>
+              <button type="button" className="role-management-action-btn role-management-action-btn-edit" onClick={() => openEdit(role)} aria-label={`Edit ${role?.name || 'role'}`} title="Edit"><EditActionIcon /></button>
             )}
             {permissions.canDelete && (
               <button
@@ -190,8 +191,10 @@ function RoleManagementPage() {
                 className="role-management-action-btn role-management-action-btn-delete"
                 onClick={() => setDeleteTarget(role)}
                 disabled={deleteLoadingId === String(role?.id)}
+                aria-label={`Delete ${role?.name || 'role'}`}
+                title="Delete"
               >
-                {deleteLoadingId === String(role?.id) ? 'Deleting...' : 'Delete'}
+                <DeleteActionIcon />
               </button>
             )}
           </div>

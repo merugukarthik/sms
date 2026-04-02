@@ -24,12 +24,11 @@ import StaffAttendancePage from './pages/StaffAttendancePage'
 import StudentPage from './pages/StudentPage'
 import StudentAttendancePage from './pages/StudentAttendancePage'
 import DesignationPage from './pages/DesignationPage'
-import TransportRoutesPage from './pages/TransportRoutesPage'
-import TransportVehiclesPage from './pages/TransportVehiclesPage'
 import TransportAttendancePage from './pages/TransportAttendancePage'
 import FeesPage from './pages/FeesPage'
 import OrganizationManagementPage from './pages/OrganizationManagementPage'
 import UserManagementPage from './pages/UserManagementPage'
+import TransportPage from './pages/TransportPage'
 
 function AppLayout({ isSideNavOpen, onToggleSideNav, onCloseSideNav, onLogout }) {
   return (
@@ -61,6 +60,38 @@ function App() {
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
+  useEffect(() => {
+    const originalFetch = window.fetch.bind(window)
+
+    window.fetch = async (...args) => {
+      const response = await originalFetch(...args)
+
+      if (!response.ok) {
+        response.clone().json().then((data) => {
+          if (data?.detail === 'Invalid token') {
+            window.dispatchEvent(new CustomEvent('sms:invalid-token'))
+          }
+        }).catch(() => {})
+      }
+
+      return response
+    }
+
+    return () => {
+      window.fetch = originalFetch
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleInvalidToken = () => {
+      dispatch(logout())
+      navigate('/', { replace: true })
+    }
+
+    window.addEventListener('sms:invalid-token', handleInvalidToken)
+    return () => window.removeEventListener('sms:invalid-token', handleInvalidToken)
+  }, [dispatch, navigate])
+
   const handleToggleSideNav = () => {
     setIsSideNavOpen((prev) => !prev)
   }
@@ -73,6 +104,7 @@ function App() {
 
   const handleSelectRole = (role) => {
     dispatch(selectRole(role))
+    navigate('/login')
     navigate('/login')
   }
 
@@ -158,12 +190,15 @@ function App() {
         <Route path="usermanagement/:featureName" element={<UserManagementPage />} />
         <Route path="user-management" element={<UserManagementPage />} />
         <Route path="user-management/:featureName" element={<UserManagementPage />} />
-        <Route path="transport/routes" element={<TransportRoutesPage />} />
-        <Route path="transport/list-routes" element={<TransportRoutesPage />} />
-        <Route path="transport/transport-routes" element={<TransportRoutesPage />} />
-        <Route path="transport/vehicles" element={<TransportVehiclesPage />} />
-        <Route path="transport/list-vehicles" element={<TransportVehiclesPage />} />
-        <Route path="transport/transport-vehicles" element={<TransportVehiclesPage />} />
+        <Route path="transport" element={<Navigate to="/app/transport/routes" replace />} />
+        <Route path="transport/routes" element={<TransportPage />} />
+        <Route path="transport/list-routes" element={<TransportPage />} />
+        <Route path="transport/transport-routes" element={<TransportPage />} />
+        <Route path="transport/vehicles" element={<TransportPage />} />
+        <Route path="transport/list-vehicles" element={<TransportPage />} />
+        <Route path="transport/transport-vehicles" element={<TransportPage />} />
+        <Route path="transport/assignments" element={<TransportPage />} />
+        <Route path="transport/list-assignments" element={<TransportPage />} />
         <Route path="transport/attendance" element={<TransportAttendancePage />} />
         <Route path="transport/list-attendance" element={<TransportAttendancePage />} />
         <Route path="transport/transport-attendance" element={<TransportAttendancePage />} />

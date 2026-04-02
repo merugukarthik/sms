@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { DeleteActionIcon, EditActionIcon } from '../components/ActionIcons'
 import CustomPopup from '../components/CustomPopup'
 import CustomTable from '../components/CustomTable'
 import { rolesManagement } from '../store/roleSlice'
@@ -109,6 +110,7 @@ function OrganizationManagementPage() {
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingOrganization, setEditingOrganization] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [showPassword, setShowPassword] = useState(false)
   const [formData, setFormData] = useState(emptyForm)
   const [formErrors, setFormErrors] = useState({})
 
@@ -183,6 +185,7 @@ function OrganizationManagementPage() {
 
   const openCreateModal = () => {
     setEditingOrganization(null)
+    setShowPassword(false)
     setFormData({ ...emptyForm, userDetails: { ...emptyForm.userDetails }, permissions: buildPermissions(featureCatalog, null) })
     setFormErrors({})
     setMessage('')
@@ -191,6 +194,7 @@ function OrganizationManagementPage() {
 
   const openEditModal = (organization) => {
     setEditingOrganization(organization)
+    setShowPassword(false)
     setFormData({
       name: organization?.name || '',
       code: organization?.code || '',
@@ -212,6 +216,7 @@ function OrganizationManagementPage() {
   const closeFormModal = () => {
     setIsFormOpen(false)
     setEditingOrganization(null)
+    setShowPassword(false)
     setFormData({ ...emptyForm, userDetails: { ...emptyForm.userDetails }, permissions: buildPermissions(featureCatalog, null) })
     setFormErrors({})
   }
@@ -364,8 +369,10 @@ function OrganizationManagementPage() {
               type="button"
               className="role-management-action-btn role-management-action-btn-edit"
               onClick={() => openEditModal(item)}
+              aria-label={`Edit ${item?.name || 'organization'}`}
+              title="Edit"
             >
-              Edit
+              <EditActionIcon />
             </button>
           )}
           {permissions.canDelete && (
@@ -373,8 +380,10 @@ function OrganizationManagementPage() {
               type="button"
               className="role-management-action-btn role-management-action-btn-delete"
               onClick={() => setDeleteTarget(item)}
+              aria-label={`Delete ${item?.name || 'organization'}`}
+              title="Delete"
             >
-              Delete
+              <DeleteActionIcon />
             </button>
           )}
         </div>
@@ -520,15 +529,59 @@ function OrganizationManagementPage() {
 
             <div className="role-management-field">
               <label htmlFor="organization-password" className="role-management-label">Create Password</label>
-              <input
-                id="organization-password"
-                name="password"
-                type="password"
-                className="role-management-input"
-                value={formData.userDetails.password}
-                onChange={handleChange}
-                placeholder={editingOrganization ? 'Enter new password (optional)' : 'Enter password'}
-              />
+              <div className="password-input-wrapper">
+                <input
+                  id="organization-password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  className="role-management-input"
+                  value={formData.userDetails.password}
+                  onChange={handleChange}
+                  placeholder={editingOrganization ? 'Enter new password (optional)' : 'Enter password'}
+                />
+                <button
+                  type="button"
+                  className="password-toggle-btn"
+                  onClick={() => setShowPassword((current) => !current)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      width="18"
+                      height="18"
+                      aria-hidden="true"
+                    >
+                      <path d="M10.58 10.58a2 2 0 0 0 2.83 2.83" />
+                      <path d="M9.88 4.24A10.94 10.94 0 0 1 12 4c5 0 9.27 3.11 11 7.5a11.83 11.83 0 0 1-2.17 3.31" />
+                      <path d="M6.61 6.61A13.53 13.53 0 0 0 1 11.5C2.73 15.89 7 19 12 19a11 11 0 0 0 5.39-1.39" />
+                      <line x1="2" y1="2" x2="22" y2="22" />
+                    </svg>
+                  ) : (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      width="18"
+                      height="18"
+                      aria-hidden="true"
+                    >
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  )}
+                </button>
+              </div>
               {formErrors.password && <p className="role-management-field-error">{formErrors.password}</p>}
             </div>
 

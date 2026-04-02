@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { DeleteActionIcon, EditActionIcon } from '../components/ActionIcons'
 import CustomPopup from '../components/CustomPopup'
 import CustomTable from '../components/CustomTable'
 import {
@@ -239,23 +240,27 @@ function TransportAttendancePage() {
       render: (attendance) => (
         <div className="role-management-table-actions">
           {permissions.canEdit && (
-            <button
-              type="button"
-              className="role-management-action-btn role-management-action-btn-edit"
-              onClick={() => handleEditAttendance(attendance)}
-            >
-              Edit
-            </button>
+              <button
+                type="button"
+                className="role-management-action-btn role-management-action-btn-edit"
+                onClick={() => handleEditAttendance(attendance)}
+                aria-label={`Edit attendance ${attendance?.id || ''}`.trim()}
+                title="Edit"
+              >
+                <EditActionIcon />
+              </button>
           )}
           {permissions.canDelete && (
             <button
               type="button"
-              className="role-management-action-btn role-management-action-btn-delete"
-              onClick={() => requestDeleteAttendance(attendance)}
-              disabled={actionLoadingId === String(attendance?.id)}
-            >
-              {actionLoadingId === String(attendance?.id) ? 'Deleting...' : 'Delete'}
-            </button>
+                className="role-management-action-btn role-management-action-btn-delete"
+                onClick={() => requestDeleteAttendance(attendance)}
+                disabled={actionLoadingId === String(attendance?.id)}
+                aria-label={`Delete attendance ${attendance?.id || ''}`.trim()}
+                title="Delete"
+              >
+                <DeleteActionIcon />
+              </button>
           )}
         </div>
       ),

@@ -82,6 +82,47 @@ export const createSchool = createAsyncThunk(
   },
 )
 
+export const updateSchool = createAsyncThunk(
+  'schools/updateSchool',
+  async ({ id, access_token, payload }, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${SCHOOLS_URL}/${id}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(access_token),
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        return rejectWithValue(await getErrorMessage(response, 'School update failed'))
+      }
+
+      return await response.json().catch(() => ({}))
+    } catch {
+      return rejectWithValue('Unable to update school. Please try again.')
+    }
+  },
+)
+
+export const deleteSchool = createAsyncThunk(
+  'schools/deleteSchool',
+  async ({ id, access_token }, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${SCHOOLS_URL}/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(access_token),
+      })
+
+      if (!response.ok) {
+        return rejectWithValue(await getErrorMessage(response, 'School delete failed'))
+      }
+
+      return await response.json().catch(() => ({}))
+    } catch {
+      return rejectWithValue('Unable to delete school. Please try again.')
+    }
+  },
+)
+
 const schoolsSlice = createSlice({
   name: 'schools',
   initialState,
@@ -109,6 +150,28 @@ const schoolsSlice = createSlice({
       .addCase(createSchool.rejected, (state, action) => {
         state.status = 'failed'
         state.error = action.payload || action.error.message || 'School create request failed.'
+      })
+      .addCase(updateSchool.pending, (state) => {
+        state.status = 'loading'
+        state.error = null
+      })
+      .addCase(updateSchool.fulfilled, (state) => {
+        state.status = 'succeeded'
+      })
+      .addCase(updateSchool.rejected, (state, action) => {
+        state.status = 'failed'
+        state.error = action.payload || action.error.message || 'School update request failed.'
+      })
+      .addCase(deleteSchool.pending, (state) => {
+        state.status = 'loading'
+        state.error = null
+      })
+      .addCase(deleteSchool.fulfilled, (state) => {
+        state.status = 'succeeded'
+      })
+      .addCase(deleteSchool.rejected, (state, action) => {
+        state.status = 'failed'
+        state.error = action.payload || action.error.message || 'School delete request failed.'
       })
   },
 })

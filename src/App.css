@@ -660,17 +660,33 @@
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .role-management-action-btn {
-  border: 1px solid #cbd5e1;
+  /* border: 1px solid #cbd5e1; */
   border-radius: 0.5rem;
   background-color: #ffffff;
   color: #0f172a;
   padding: 0.35rem 0.7rem;
   font-size: 0.85rem;
   cursor: pointer;
+}
+
+.role-management-action-btn svg {
+  display: block;
+}
+
+.role-management-table-actions .role-management-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 0;
 }
 
 .role-management-action-btn:disabled {
@@ -1195,6 +1211,11 @@
 }
 
 .password-input-wrapper .login-input {
+  width: 100%;
+  padding-right: 2.5rem;
+}
+
+.password-input-wrapper .role-management-input {
   width: 100%;
   padding-right: 2.5rem;
 }

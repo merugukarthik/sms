@@ -1,6 +1,6 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://172.16.24.126:8000/api/v1'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://172.16.24.126:8000/api'
 
 const initialState = {
   status: 'idle',
@@ -47,7 +47,19 @@ export const fetchTransportRoutes = createAsyncThunk(
 
 export const fetchCreateTransportRoute = createAsyncThunk(
   'transport/fetchCreateTransportRoute',
-  async ({ name, description, vehicle_id, driver_user_id, access_token }, { rejectWithValue }) => {
+  async ({
+    school_id,
+    name,
+    code,
+    vehicle_number,
+    driver_name,
+    driver_phone,
+    fare,
+    description,
+    vehicle_id,
+    driver_user_id,
+    access_token,
+  }, { rejectWithValue }) => {
     try {
       const response = await fetch(`${API_BASE_URL}/transport/routes`, {
         method: 'POST',
@@ -56,7 +68,18 @@ export const fetchCreateTransportRoute = createAsyncThunk(
           'Content-Type': 'application/json',
           Authorization: 'Bearer ' + access_token,
         },
-        body: JSON.stringify({ name, description, vehicle_id, driver_user_id }),
+        body: JSON.stringify({
+          school_id,
+          name,
+          code,
+          vehicle_number,
+          driver_name,
+          driver_phone,
+          fare,
+          description,
+          vehicle_id,
+          driver_user_id,
+        }),
       })
 
       if (!response.ok) {
@@ -73,7 +96,17 @@ export const fetchCreateTransportRoute = createAsyncThunk(
 
 export const fetchUpdateTransportRoute = createAsyncThunk(
   'transport/fetchUpdateTransportRoute',
-  async ({ id, name, description, vehicle_id, driver_user_id, access_token }, { rejectWithValue }) => {
+  async ({
+    id,
+    school_id,
+    name,
+    code,
+    vehicle_number,
+    driver_name,
+    driver_phone,
+    fare,
+    access_token,
+  }, { rejectWithValue }) => {
     try {
       const response = await fetch(`${API_BASE_URL}/transport/routes/${id}`, {
         method: 'PUT',
@@ -82,7 +115,15 @@ export const fetchUpdateTransportRoute = createAsyncThunk(
           'Content-Type': 'application/json',
           Authorization: 'Bearer ' + access_token,
         },
-        body: JSON.stringify({ name, description, vehicle_id, driver_user_id }),
+        body: JSON.stringify({
+          school_id,
+          name,
+          code,
+          vehicle_number,
+          driver_name,
+          driver_phone,
+          fare,
+        }),
       })
 
       if (!response.ok) {
@@ -145,9 +186,60 @@ export const fetchTransportVehicles = createAsyncThunk(
   },
 )
 
+export const fetchTransportStudentAssignments = createAsyncThunk(
+  'transport/fetchTransportStudentAssignments',
+  async ({ access_token, page = 1, page_size = 10 }, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/transport/students/assignments?page=${page}&page_size=${page_size}`, {
+        method: 'GET',
+        headers: {
+          accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + access_token,
+        },
+      })
+
+      if (!response.ok) {
+        return rejectWithValue(await getErrorMessage(response, 'Transport assignments fetch failed'))
+      }
+
+      const data = await response.json().catch(() => ({}))
+      return data
+    } catch {
+      return rejectWithValue('Unable to fetch transport assignments. Please try again.')
+    }
+  },
+)
+
+export const fetchCreateTransportStudentAssignment = createAsyncThunk(
+  'transport/fetchCreateTransportStudentAssignment',
+  async ({ access_token, payload }, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/transport/students/assignments`, {
+        method: 'POST',
+        headers: {
+          accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + access_token,
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        return rejectWithValue(await getErrorMessage(response, 'Transport assignment creation failed'))
+      }
+
+      const data = await response.json().catch(() => ({}))
+      return data
+    } catch {
+      return rejectWithValue('Unable to create transport assignment. Please try again.')
+    }
+  },
+)
+
 export const fetchCreateTransportVehicle = createAsyncThunk(
   'transport/fetchCreateTransportVehicle',
-  async ({ vehicle_number, vehicle_type, capacity, access_token }, { rejectWithValue }) => {
+  async ({ school_id, vehicle_number, vehicle_type, capacity, access_token }, { rejectWithValue }) => {
     try {
       const response = await fetch(`${API_BASE_URL}/transport/vehicles`, {
         method: 'POST',
@@ -157,6 +249,7 @@ export const fetchCreateTransportVehicle = createAsyncThunk(
           Authorization: 'Bearer ' + access_token,
         },
         body: JSON.stringify({
+          school_id,
           vehicle_number,
           vehicle_type,
           capacity,
@@ -177,7 +270,7 @@ export const fetchCreateTransportVehicle = createAsyncThunk(
 
 export const fetchUpdateTransportVehicle = createAsyncThunk(
   'transport/fetchUpdateTransportVehicle',
-  async ({ id, vehicle_number, vehicle_type, capacity, is_active, access_token }, { rejectWithValue }) => {
+  async ({ id, school_id, vehicle_number, vehicle_type, capacity, is_active, access_token }, { rejectWithValue }) => {
     try {
       const response = await fetch(`${API_BASE_URL}/transport/vehicles/${id}`, {
         method: 'PUT',
@@ -187,6 +280,7 @@ export const fetchUpdateTransportVehicle = createAsyncThunk(
           Authorization: 'Bearer ' + access_token,
         },
         body: JSON.stringify({
+          school_id,
           vehicle_number,
           vehicle_type,
           capacity,

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { DeleteActionIcon, EditActionIcon } from '../components/ActionIcons'
 import CustomPopup from '../components/CustomPopup'
 import CustomTable from '../components/CustomTable'
 import {
@@ -17,12 +18,15 @@ const normalizeList = (resp) => (
       ? resp
       : Array.isArray(resp?.data)
         ? resp.data
-        : []
+        : Array.isArray(resp?.vehicles)
+          ? resp.vehicles
+          : []
 )
 
 function TransportVehiclesPage() {
   const dispatch = useDispatch()
   const { user } = useSelector((state) => state.auth)
+  const schoolId = Number(user?.user?.school_id ?? user?.school_id ?? 0)
   const [vehiclesData, setVehiclesData] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [actionLoadingId, setActionLoadingId] = useState('')
@@ -36,12 +40,12 @@ function TransportVehiclesPage() {
   const [formData, setFormData] = useState({
     vehicle_number: '',
     vehicle_type: '',
-    capacity: 0,
+    capacity: '',
   })
   const [editFormData, setEditFormData] = useState({
     vehicle_number: '',
     vehicle_type: '',
-    capacity: 0,
+    capacity: '',
     is_active: false,
   })
 
@@ -77,8 +81,9 @@ function TransportVehiclesPage() {
   const validateForm = (values) => {
     const nextErrors = {}
     if (!values.vehicle_number.trim()) nextErrors.vehicle_number = 'Vehicle number is required.'
-    if (!values.vehicle_type.trim()) nextErrors.vehicle_type = 'Vehicle type is required.'
-    if (!values.capacity || Number(values.capacity) <= 0) nextErrors.capacity = 'Capacity is required.'
+    if (!String(values.vehicle_type || '').trim()) nextErrors.vehicle_type = 'Vehicle type is required.'
+    if (!String(values.capacity || '').trim()) nextErrors.capacity = 'Capacity is required.'
+    else if (Number(values.capacity) <= 0) nextErrors.capacity = 'Capacity must be greater than 0.'
     return nextErrors
   }
 
@@ -93,7 +98,7 @@ function TransportVehiclesPage() {
     setFormData({
       vehicle_number: '',
       vehicle_type: '',
-      capacity: 0,
+      capacity: '',
     })
     setFormError({})
   }
@@ -103,7 +108,7 @@ function TransportVehiclesPage() {
     setEditFormData({
       vehicle_number: '',
       vehicle_type: '',
-      capacity: 0,
+      capacity: '',
       is_active: false,
     })
     setFormError({})
@@ -111,15 +116,21 @@ function TransportVehiclesPage() {
 
   const handleInputChange = (event) => {
     const { name, value, type } = event.target
-    setFormData((prev) => ({ ...prev, [name]: type === 'number' ? Number(value) : value }))
+    const nextValue = type === 'number' ? value : value
+    setFormData((prev) => ({ ...prev, [name]: nextValue }))
     setFormError((prev) => ({ ...prev, [name]: '', submit: '' }))
   }
 
   const handleEditInputChange = (event) => {
     const { name, value, type } = event.target
+    const nextValue = name === 'is_active'
+      ? value === 'true'
+      : type === 'number'
+        ? value
+        : value
     setEditFormData((prev) => ({
       ...prev,
-      [name]: name === 'is_active' ? value === 'true' : (type === 'number' ? Number(value) : value),
+      [name]: nextValue,
     }))
     setFormError((prev) => ({ ...prev, [name]: '', editSubmit: '' }))
   }
@@ -135,9 +146,18 @@ function TransportVehiclesPage() {
       setFormError({ submit: 'Missing access token. Please login again.' })
       return
     }
+    if (schoolId <= 0) {
+      setFormError({ submit: 'Missing school id. Please login again.' })
+      return
+    }
     setIsSubmitting(true)
     try {
-      await dispatch(fetchCreateTransportVehicle({ ...formData, access_token: user.access_token })).unwrap()
+      await dispatch(fetchCreateTransportVehicle({
+        school_id: schoolId,
+        ...formData,
+        capacity: Number(formData.capacity),
+        access_token: user.access_token,
+      })).unwrap()
       setMessage('Transport vehicle created successfully.')
       closeCreatePopup()
       await refreshVehicles()
@@ -153,7 +173,7 @@ function TransportVehiclesPage() {
     setEditFormData({
       vehicle_number: vehicle?.vehicle_number || '',
       vehicle_type: vehicle?.vehicle_type || '',
-      capacity: Number(vehicle?.capacity ?? 0),
+      capacity: String(vehicle?.capacity ?? ''),
       is_active: vehicle?.is_active === true || vehicle?.is_active === 'true' || vehicle?.is_active === 1,
     })
     setFormError({})
@@ -176,7 +196,9 @@ function TransportVehiclesPage() {
       await dispatch(
         fetchUpdateTransportVehicle({
           id: editingVehicle.id,
+          school_id: Number(editingVehicle?.school_id ?? schoolId),
           ...editFormData,
+          capacity: Number(editFormData.capacity),
           access_token: user.access_token,
         }),
       ).unwrap()
@@ -225,23 +247,27 @@ function TransportVehiclesPage() {
       render: (vehicle) => (
         <div className="role-management-table-actions">
           {permissions.canEdit && (
-            <button
-              type="button"
-              className="role-management-action-btn role-management-action-btn-edit"
-              onClick={() => handleEditVehicle(vehicle)}
-            >
-              Edit
-            </button>
+              <button
+                type="button"
+                className="role-management-action-btn role-management-action-btn-edit"
+                onClick={() => handleEditVehicle(vehicle)}
+                aria-label={`Edit ${vehicle?.vehicle_number || 'vehicle'}`}
+                title="Edit"
+              >
+                <EditActionIcon />
+              </button>
           )}
           {permissions.canDelete && (
             <button
               type="button"
-              className="role-management-action-btn role-management-action-btn-delete"
-              onClick={() => requestDeleteVehicle(vehicle)}
-              disabled={actionLoadingId === String(vehicle?.id)}
-            >
-              {actionLoadingId === String(vehicle?.id) ? 'Deleting...' : 'Delete'}
-            </button>
+                className="role-management-action-btn role-management-action-btn-delete"
+                onClick={() => requestDeleteVehicle(vehicle)}
+                disabled={actionLoadingId === String(vehicle?.id)}
+                aria-label={`Delete ${vehicle?.vehicle_number || 'vehicle'}`}
+                title="Delete"
+              >
+                <DeleteActionIcon />
+              </button>
           )}
         </div>
       ),
@@ -301,7 +327,7 @@ function TransportVehiclesPage() {
               </div>
               <div className="role-management-field">
                 <label htmlFor="vehicle-capacity" className="role-management-label">Capacity</label>
-                <input id="vehicle-capacity" name="capacity" type="number" className="role-management-input" value={formData.capacity} onChange={handleInputChange} />
+                <input id="vehicle-capacity" name="capacity" type="number" className="role-management-input" value={formData.capacity} onChange={handleInputChange} min="1" />
                 {formError.capacity && <p className="role-management-field-error">{formError.capacity}</p>}
               </div>
               <div className="role-management-form-actions">
@@ -331,7 +357,7 @@ function TransportVehiclesPage() {
               </div>
               <div className="role-management-field">
                 <label htmlFor="edit-vehicle-capacity" className="role-management-label">Capacity</label>
-                <input id="edit-vehicle-capacity" name="capacity" type="number" className="role-management-input" value={editFormData.capacity} onChange={handleEditInputChange} />
+                <input id="edit-vehicle-capacity" name="capacity" type="number" className="role-management-input" value={editFormData.capacity} onChange={handleEditInputChange} min="1" />
                 {formError.capacity && <p className="role-management-field-error">{formError.capacity}</p>}
               </div>
               <div className="role-management-field">
@@ -360,7 +386,7 @@ function TransportVehiclesPage() {
       <CustomPopup
         isOpen={Boolean(deleteVehicleTarget)}
         title="Delete Vehicle"
-        message={`Are you sure you want to delete "${deleteVehicleTarget?.name || 'this vehicle'}"?`}
+        message={`Are you sure you want to delete "${deleteVehicleTarget?.vehicle_number || deleteVehicleTarget?.name || 'this vehicle'}"?`}
         onConfirm={handleDeleteVehicle}
         confirmText={actionLoadingId === String(deleteVehicleTarget?.id) ? 'Deleting...' : 'Delete'}
         onCancel={closeDeletePopup}

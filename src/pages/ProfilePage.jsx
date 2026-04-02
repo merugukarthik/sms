@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSelector } from 'react-redux'
+import { EditActionIcon } from '../components/ActionIcons'
 
 const formatValue = (value) => {
   if (value === null || value === undefined || value === '') return '-'
@@ -102,8 +103,10 @@ function ProfilePage() {
                     type="button"
                     className="role-management-action-btn role-management-action-btn-edit"
                     onClick={() => setIsEditing(true)}
+                    aria-label="Edit profile"
+                    title="Edit"
                   >
-                    Edit
+                    <EditActionIcon />
                   </button>
                 )}
                 {isEditing && (

@@ -11,6 +11,7 @@ const MODULE_ROUTE_MAP = {
   student_mgmt: '/app/students',
   teacher_mgmt: '/app/staff',
   class_mgmt: '/app/academics',
+  transport_mgmt: '/app/transport/routes',
   reports: '/app/reports',
   designation_mgmt: '/app/designations',
 }
@@ -70,6 +71,10 @@ const getModulePath = (moduleItem) => {
 
   if (normalizedPath === 'designation' || normalizedPath === 'designations') {
     return '/app/designations'
+  }
+
+  if (normalizedPath === 'transport') {
+    return '/app/transport/routes'
   }
 
   return `/app/${normalizedPath}`
@@ -259,7 +264,7 @@ function SideNav({ isOpen, onToggle, onNavigate, onLogout }) {
       return String(first?.module_name || '').localeCompare(String(second?.module_name || ''))
     })
 
-    return orderedModules.map((moduleItem, index) => {
+    const moduleItems = orderedModules.map((moduleItem, index) => {
       const modulePath = getModulePath(moduleItem)
       return {
         key: `${modulePath}-module-${moduleItem?.module_id ?? moduleItem?.id ?? index}`,
@@ -268,6 +273,16 @@ function SideNav({ isOpen, onToggle, onNavigate, onLogout }) {
         icon: moduleItem?.icon || getModuleIcon(moduleItem),
       }
     })
+
+    return [
+      {
+        key: 'dashboard-home',
+        label: 'Dashboard',
+        path: '/app/home',
+        icon: 'home',
+      },
+      ...moduleItems,
+    ]
   }, [modules])
 
   const sidebarClassName = `sidebar ${isOpen ? 'sidebar-open' : 'sidebar-collapsed'}`
