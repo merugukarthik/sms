@@ -3,9 +3,9 @@ import { useDispatch, useSelector } from 'react-redux'
 import CustomPopup from '../components/CustomPopup'
 import CustomTable from '../components/CustomTable'
 import { fetchAcademicYears, fetchClasses, fetchSections } from '../store/academicSlice'
-import { fetchCreateFinanceAssignment } from '../store/feesSlice'
+import { createRazorpayOrder, fetchCreateFinanceAssignment } from '../store/feesSlice'
 import { rolesManagement } from '../store/roleSlice'
-import { fetchCreateStudent, fetchPromoteStudent, fetchStudentsList } from '../store/studentsSlice'
+import { fetchCreateStudent, fetchPromoteStudent, fetchStudentDues, fetchStudentsList } from '../store/studentsSlice'
 import { getCrudPermissions } from '../utils/permissions'
 
 const FEE_TYPE_OPTIONS = [
@@ -16,6 +16,7 @@ const FEE_TYPE_OPTIONS = [
 ]
 
 const PAYMENT_MODE_OPTIONS = [
+  { value: 'razorpay', label: 'Razorpay' },
   { value: 'cash', label: 'Cash' },
   { value: 'card', label: 'Card' },
   { value: 'upi', label: 'UPI' },
@@ -33,6 +34,8 @@ const GENDER_OPTIONS = [
   { value: 'female', label: 'Female' },
   { value: 'other', label: 'Other' },
 ]
+
+const RAZORPAY_CHECKOUT_URL = 'https://checkout.razorpay.com/v1/checkout.js'
 
 const getNormalizedList = (resp) => (
   Array.isArray(resp?.items)
@@ -54,6 +57,72 @@ const getSectionClassId = (section) => (
     ?? 0
   )
 )
+
+const getDueItems = (payload) => {
+  if (Array.isArray(payload)) return payload
+  if (Array.isArray(payload?.items)) return payload.items
+  if (Array.isArray(payload?.data)) return payload.data
+  if (Array.isArray(payload?.dues)) return payload.dues
+  if (Array.isArray(payload?.results)) return payload.results
+  return []
+}
+
+const formatDueLabel = (key) => {
+  const rawKey = String(key ?? '')
+  const normalizedKey = rawKey.replace(/[_\s-]+/g, '').toLowerCase()
+  if (normalizedKey === 'pendingfees') return 'Pending dues'
+
+  const normalizedLabel = rawKey
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.toLowerCase())
+    .join(' ')
+
+  return normalizedLabel
+    ? normalizedLabel.charAt(0).toUpperCase() + normalizedLabel.slice(1)
+    : ''
+}
+
+const formatDueValue = (value) => {
+  if (value == null || value === '') return '-'
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+  return String(value)
+}
+
+const generateReceiptNumber = () => `RCPT-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`
+
+const resolveRazorpayOrder = (response) => (
+  response?.order
+  ?? response?.data
+  ?? response
+)
+
+const loadRazorpayScript = () => new Promise((resolve, reject) => {
+  if (typeof window === 'undefined') {
+    reject(new Error('Window is not available.'))
+    return
+  }
+
+  if (window.Razorpay) {
+    resolve(window.Razorpay)
+    return
+  }
+
+  const existingScript = document.querySelector(`script[src="${RAZORPAY_CHECKOUT_URL}"]`)
+  if (existingScript) {
+    existingScript.addEventListener('load', () => resolve(window.Razorpay), { once: true })
+    existingScript.addEventListener('error', () => reject(new Error('Failed to load Razorpay checkout.')), { once: true })
+    return
+  }
+
+  const script = document.createElement('script')
+  script.src = RAZORPAY_CHECKOUT_URL
+  script.async = true
+  script.onload = () => resolve(window.Razorpay)
+  script.onerror = () => reject(new Error('Failed to load Razorpay checkout.'))
+  document.body.appendChild(script)
+})
 
 function StudentPage() {
   const sanitizePhoneValue = (value) => String(value ?? '').replace(/\D/g, '').slice(0, 10)
@@ -95,12 +164,24 @@ function StudentPage() {
   const [isCreatePopupOpen, setIsCreatePopupOpen] = useState(false)
   const [isAddFeePopupOpen, setIsAddFeePopupOpen] = useState(false)
   const [isPromotePopupOpen, setIsPromotePopupOpen] = useState(false)
+  const [isFeeDuePopupOpen, setIsFeeDuePopupOpen] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [selectedStudentForFee, setSelectedStudentForFee] = useState(null)
   const [selectedStudentForPromotion, setSelectedStudentForPromotion] = useState(null)
+  const [selectedStudentForDues, setSelectedStudentForDues] = useState(null)
   const [formError, setFormError] = useState({})
   const [feeFormError, setFeeFormError] = useState({})
   const [promoteFormError, setPromoteFormError] = useState({})
+  const [payDueAmount, setPayDueAmount] = useState('')
+  const [payDueMode, setPayDueMode] = useState('razorpay')
+  const [payDueError, setPayDueError] = useState('')
+  const [isPayDueExpanded, setIsPayDueExpanded] = useState(false)
+  const [isRedirectingToRazorpay, setIsRedirectingToRazorpay] = useState(false)
+  const [isCashReceiptPopupOpen, setIsCashReceiptPopupOpen] = useState(false)
+  const [cashReceiptNumber, setCashReceiptNumber] = useState('')
+  const [feeDueData, setFeeDueData] = useState(null)
+  const [feeDueError, setFeeDueError] = useState('')
+  const [isFeeDueLoading, setIsFeeDueLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [formData, setFormData] = useState({
     first_name: '',
@@ -382,7 +463,7 @@ function StudentPage() {
     }
   }
 
-  const openAddFeePopup = (student) => {
+  const openAddFeePopup = (student, initialValues = {}) => {
     setSelectedStudentForFee(student)
     setFeeFormData({
       amount: '',
@@ -395,6 +476,7 @@ function StudentPage() {
       academic_year: '',
       month: 'march',
       remarks: '',
+      ...initialValues,
     })
     setFeeFormError({})
     setMessage('')
@@ -513,6 +595,19 @@ function StudentPage() {
     setPromoteFormError({})
   }
 
+  const closeFeeDuePopup = () => {
+    setIsFeeDuePopupOpen(false)
+    setSelectedStudentForDues(null)
+    setFeeDueData(null)
+    setFeeDueError('')
+    setIsFeeDueLoading(false)
+    setPayDueAmount('')
+    setPayDueMode('razorpay')
+    setPayDueError('')
+    setIsPayDueExpanded(false)
+    setIsRedirectingToRazorpay(false)
+  }
+
   const handlePromoteInputChange = (event) => {
     const { name, value } = event.target
     setPromoteFormData((prev) => ({
@@ -561,6 +656,176 @@ function StudentPage() {
     }
   }
 
+  const handleViewFeeDue = async (student) => {
+    const studentId = Number(student?.id)
+    if (!studentId || !user?.access_token) {
+      return
+    }
+
+    setSelectedStudentForDues(student)
+    setFeeDueData(null)
+    setFeeDueError('')
+    setPayDueAmount('')
+    setPayDueMode('razorpay')
+    setPayDueError('')
+    setIsPayDueExpanded(false)
+    setIsFeeDueLoading(true)
+    setIsFeeDuePopupOpen(true)
+
+    try {
+      const response = await dispatch(fetchStudentDues({
+        student_id: studentId,
+        access_token: user.access_token,
+      })).unwrap()
+
+      setFeeDueData(response)
+    } catch (err) {
+      setFeeDueError(typeof err === 'string' ? err : 'Failed to fetch student dues.')
+    } finally {
+      setIsFeeDueLoading(false)
+    }
+  }
+
+  const handlePayDue = async () => {
+    if (!selectedStudentForDues) {
+      return
+    }
+
+    if (!isPayDueExpanded) {
+      setIsPayDueExpanded(true)
+      setPayDueError('')
+      return
+    }
+
+    if (!String(payDueAmount).trim()) {
+      setPayDueError('Amount is required.')
+      return
+    }
+
+    if (Number(payDueAmount) <= 0) {
+      setPayDueError('Amount must be greater than 0.')
+      return
+    }
+
+    if (!String(payDueMode).trim()) {
+      setPayDueError('Payment mode is required.')
+      return
+    }
+
+    if (!user?.access_token) {
+      setPayDueError('Missing access token. Please login again.')
+      return
+    }
+
+    const amountRupees = Number(payDueAmount)
+
+    if (payDueMode === 'cash') {
+      setCashReceiptNumber(generateReceiptNumber())
+      closeFeeDuePopup()
+      setIsCashReceiptPopupOpen(true)
+      return
+    }
+
+    if (payDueMode !== 'razorpay') {
+      closeFeeDuePopup()
+      openAddFeePopup(selectedStudentForDues, {
+        amount: String(amountRupees),
+        paid_amount: String(amountRupees),
+        payment_mode: payDueMode,
+      })
+      return
+    }
+
+    setIsRedirectingToRazorpay(true)
+    setPayDueError('')
+
+    try {
+      const orderResponse = await dispatch(createRazorpayOrder({
+        access_token: user.access_token,
+        key: 'rzp_test_SSbJqkb2l3Z0VD',
+        amount: Math.round(amountRupees * 100),
+        currency: 'INR',
+        receipt: `student-due-${selectedStudentForDues.id}-${Date.now()}`,
+      })).unwrap()
+
+      const order = resolveRazorpayOrder(orderResponse)
+      const Razorpay = await loadRazorpayScript()
+      const paymentKeyId = order?.key_id || 'rzp_test_SSbJqkb2l3Z0VD'
+      const razorpayOrderId = order?.razorpay_order_id || order?.order_id || order?.id
+      const paymentAmountPaise = Number(order?.amount_paise ?? order?.amount ?? Math.round(amountRupees * 100))
+
+      if (!Razorpay) {
+        throw new Error('Razorpay checkout is unavailable.')
+      }
+
+      if (!razorpayOrderId) {
+        throw new Error('Order id was not returned by the payment API.')
+      }
+
+      const paymentObject = new Razorpay({
+        key: paymentKeyId,
+        amount: paymentAmountPaise,
+        currency: order?.currency || 'INR',
+        name: 'SMS Portal',
+        description: `Fee payment for ${selectedStudentForDues.first_name || 'student'}`,
+        order_id: razorpayOrderId,
+        prefill: {
+          name: `${selectedStudentForDues.first_name || ''} ${selectedStudentForDues.last_name || ''}`.trim(),
+          email: selectedStudentForDues.email || user?.user?.email || user?.email || '',
+          contact: selectedStudentForDues.phone || user?.user?.phone || user?.phone || '',
+        },
+        notes: {
+          student_id: String(selectedStudentForDues.id),
+          payment_type: 'student_due',
+          entered_amount: String(amountRupees),
+        },
+        theme: {
+          color: '#1f6feb',
+        },
+        handler: () => {
+          closeFeeDuePopup()
+          setMessage(`Payment initiated for Rs. ${amountRupees}.`)
+        },
+        modal: {
+          ondismiss: () => {
+            setIsRedirectingToRazorpay(false)
+          },
+        },
+      })
+
+      paymentObject.on('payment.failed', (response) => {
+        const failureReason = response?.error?.description || response?.error?.reason || 'Payment failed.'
+        setPayDueError(failureReason)
+        setIsRedirectingToRazorpay(false)
+      })
+
+      paymentObject.open()
+    } catch (err) {
+      setPayDueError(typeof err === 'string' ? err : err?.message || 'Unable to start payment.')
+      setIsRedirectingToRazorpay(false)
+    }
+  }
+
+  const dueItems = useMemo(() => getDueItems(feeDueData), [feeDueData])
+  const dueSummary = useMemo(() => {
+    if (!feeDueData || Array.isArray(feeDueData) || typeof feeDueData !== 'object') {
+      return []
+    }
+
+    return Object.entries(feeDueData).filter(([key, value]) => {
+      if (['items', 'data', 'dues', 'results', 'has_dues'].includes(key)) return false
+      return typeof value !== 'object' || value === null
+    })
+  }, [feeDueData])
+  const hasDuesValue = Boolean(
+    feeDueData?.has_dues
+    ?? (dueItems.length > 0 ? true : null)
+  )
+  const dueTotal = dueItems.length
+  const dueHeadline = selectedStudentForDues
+    ? `${selectedStudentForDues.first_name || ''} ${selectedStudentForDues.last_name || ''}`.trim() || `Student #${selectedStudentForDues.id}`
+    : 'Student'
+
   const studentColumns = [
     { key: 'id', header: 'Student Id' },
     { key: 'admission_no', header: 'Admission No' },
@@ -585,6 +850,13 @@ function StudentPage() {
             onClick={() => openAddFeePopup(student)}
           >
             Add Fee
+          </button>
+          <button
+            type="button"
+            className="role-management-action-btn role-management-action-btn-edit"
+            onClick={() => handleViewFeeDue(student)}
+          >
+            Fee Due
           </button>
           <button
             type="button"
@@ -1220,6 +1492,159 @@ function StudentPage() {
           </div>
           {promoteFormError.submit && <p className="role-management-field-error">{promoteFormError.submit}</p>}
         </form>
+      </CustomPopup>
+      <CustomPopup
+        isOpen={isFeeDuePopupOpen}
+        title={`Fee Dues${selectedStudentForDues?.first_name ? ` - ${selectedStudentForDues.first_name}${selectedStudentForDues?.last_name ? ` ${selectedStudentForDues.last_name}` : ''}` : ''}`}
+        titleId="student-fee-due-title"
+        popupClassName="role-management-create-popup fee-due-popup"
+        onClose={closeFeeDuePopup}
+      >
+        <div className="role-management-form fee-due-layout">
+          <section className="fee-due-hero">
+            <div>
+              <p className="fee-due-eyebrow">Student Fee Overview</p>
+              <h4 className="fee-due-student-name">{dueHeadline}</h4>
+              <p className="fee-due-subtitle">
+                Review pending fee items and the latest due details for this student.
+              </p>
+            </div>
+            <div className="fee-due-stat-grid">
+              <div className="fee-due-stat-card fee-due-stat-card-accent">
+                <span className="fee-due-stat-label">Status</span>
+                <strong className="fee-due-stat-value">
+                  {isFeeDueLoading ? 'Loading' : feeDueError ? 'Issue Found' : hasDuesValue ? 'Pending' : 'No Dues'}
+                </strong>
+              </div>
+            </div>
+          </section>
+
+          {isFeeDueLoading && (
+            <div className="fee-due-state-card">
+              <p className="role-management-info">Loading dues...</p>
+            </div>
+          )}
+
+          {!isFeeDueLoading && feeDueError && (
+            <div className="fee-due-state-card fee-due-state-card-error">
+              <p className="role-management-field-error">{feeDueError}</p>
+            </div>
+          )}
+
+          {!isFeeDueLoading && !feeDueError && dueSummary.length > 0 && (
+            <section className="fee-due-summary-grid">
+              {dueSummary.map(([key, value]) => (
+                <article key={key} className="fee-due-summary-card">
+                  <span className="fee-due-summary-label">{formatDueLabel(key)}</span>
+                  <strong className="fee-due-summary-value">{formatDueValue(value)}</strong>
+                </article>
+              ))}
+            </section>
+          )}
+
+          {!isFeeDueLoading && !feeDueError && dueItems.length > 0 && (
+            <section className="fee-due-list">
+              {dueItems.map((item, index) => (
+                <article key={item?.id ?? item?.fee_id ?? item?.fee_type_id ?? index} className="fee-due-item-card">
+                  <div className="fee-due-item-head">
+                    <h5 className="fee-due-item-title">
+                      {item?.fee_type_name || item?.fee_type || item?.title || `Due Item ${index + 1}`}
+                    </h5>
+                    <span className="fee-due-item-badge">Due</span>
+                  </div>
+                  <div className="fee-due-item-grid">
+                    {Object.entries(item || {}).map(([key, value]) => (
+                      <div key={key} className="fee-due-item-field">
+                        <span className="fee-due-item-label">{formatDueLabel(key)}</span>
+                        <strong className="fee-due-item-value">{formatDueValue(value)}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </section>
+          )}
+
+          {!isFeeDueLoading && !feeDueError && dueItems.length === 0 && dueSummary.length === 0 && (
+            <div className="fee-due-state-card">
+              <p className="role-management-info">No due details found for this student.</p>
+            </div>
+          )}
+
+          {!isFeeDueLoading && !feeDueError && hasDuesValue && isPayDueExpanded && (
+            <div className="fee-due-payment-box">
+              <div className="role-management-field">
+                <label htmlFor="student-due-pay-amount" className="role-management-label">Amount</label>
+                <input
+                  id="student-due-pay-amount"
+                  type="number"
+                  min="1"
+                  className="role-management-input"
+                  value={payDueAmount}
+                  onChange={(event) => {
+                    setPayDueAmount(event.target.value)
+                    setPayDueError('')
+                  }}
+                  placeholder="Enter amount to pay"
+                />
+              </div>
+              <div className="role-management-field">
+                <label htmlFor="student-due-pay-mode" className="role-management-label mt-3">Mode Of Payment</label>
+                <select
+                  id="student-due-pay-mode"
+                  className="role-management-select"
+                  value={payDueMode}
+                  onChange={(event) => {
+                    setPayDueMode(event.target.value)
+                    setPayDueError('')
+                  }}
+                >
+                  <option value="">Select payment mode</option>
+                  {PAYMENT_MODE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+              {payDueError && <p className="role-management-field-error">{payDueError}</p>}
+            </div>
+          )}
+
+          <div className="role-management-form-actions fee-due-actions">
+            {!isFeeDueLoading && !feeDueError && hasDuesValue && (
+              <button
+                type="button"
+                className="role-management-create-btn"
+                onClick={handlePayDue}
+                disabled={isRedirectingToRazorpay}
+              >
+                {isRedirectingToRazorpay ? 'Opening Razorpay...' : isPayDueExpanded ? 'Continue' : 'Pay'}
+              </button>
+            )}
+            <button
+              type="button"
+              className="role-management-cancel-btn"
+              onClick={closeFeeDuePopup}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </CustomPopup>
+      <CustomPopup
+        isOpen={isCashReceiptPopupOpen}
+        title="Cash Collected"
+        titleId="student-cash-collected-title"
+        onConfirm={() => setIsCashReceiptPopupOpen(false)}
+        confirmText="Close"
+        onClose={() => setIsCashReceiptPopupOpen(false)}
+      >
+        <div className="role-management-form">
+          <p className="role-management-success">Cash collected successfully.</p>
+          <div className="fee-due-state-card">
+            <p className="role-management-detail-label">Receipt Number</p>
+            <p className="role-management-detail-value">{cashReceiptNumber || '-'}</p>
+          </div>
+        </div>
       </CustomPopup>
     </section>
   )

@@ -14,6 +14,7 @@ const MODULE_ROUTE_MAP = {
   transport_mgmt: '/app/transport/routes',
   reports: '/app/reports',
   designation_mgmt: '/app/designations',
+  department_mgmt: '/app/departments',
 }
 
 const getModuleIcon = (moduleItem) => {
@@ -27,6 +28,7 @@ const getModuleIcon = (moduleItem) => {
   if (moduleCode === 'student_mgmt' || moduleName.includes('student')) return 'students'
   if (moduleCode === 'teacher_mgmt' || moduleName.includes('teacher') || moduleName.includes('staff')) return 'staff'
   if (moduleName.includes('designation')) return 'designation'
+  if (moduleName.includes('department')) return 'designation'
   if (moduleName.includes('finance') || moduleName.includes('fee')) return 'finance'
   if (moduleName.includes('transport')) return 'transport'
   if (moduleCode === 'class_mgmt' || moduleName.includes('class') || moduleName.includes('academic')) return 'academics'
@@ -71,6 +73,10 @@ const getModulePath = (moduleItem) => {
 
   if (normalizedPath === 'designation' || normalizedPath === 'designations') {
     return '/app/designations'
+  }
+
+  if (normalizedPath === 'department' || normalizedPath === 'departments') {
+    return '/app/departments'
   }
 
   if (normalizedPath === 'transport') {

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import CustomPopup from '../components/CustomPopup'
 import CustomTable from '../components/CustomTable'
-import { createDepartmentWithDesignations, fetchDesignationsBySchool } from '../store/staffSlice'
+import { createDesignation, fetchDepartments, fetchDesignationList } from '../store/staffSlice'
 import { fetchSchools } from '../store/schoolsSlice'
 import { getCrudPermissions } from '../utils/permissions'
 
@@ -64,6 +64,13 @@ function DesignationPage() {
 
   const [designations, setDesignations] = useState([])
   const [schools, setSchools] = useState([])
+  const [departments, setDepartments] = useState([])
+  const [pagination, setPagination] = useState({
+    page: 1,
+    page_size: 10,
+    total: 0,
+    total_pages: 0,
+  })
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -71,13 +78,13 @@ function DesignationPage() {
   const [isCreatePopupOpen, setIsCreatePopupOpen] = useState(false)
   const [formData, setFormData] = useState({
     school_id: schoolId ? String(schoolId) : '',
-    department_name: '',
+    department_id: '',
+    name: '',
     code: '',
-    designations: [''],
   })
   const [formErrors, setFormErrors] = useState({})
 
-  const loadDesignations = async (targetSchoolId = schoolId) => {
+  const loadDesignations = async (targetSchoolId = schoolId, targetPage = 1) => {
     if (!accessToken) {
       setError('Missing access token. Please login again.')
       setDesignations([])
@@ -95,16 +102,31 @@ function DesignationPage() {
 
     try {
       const response = await dispatch(
-        fetchDesignationsBySchool({
+        fetchDesignationList({
           access_token: accessToken,
           school_id: targetSchoolId,
+          page: targetPage,
+          page_size: pagination.page_size,
         }),
       ).unwrap()
 
       setDesignations(normalizeList(response, 'designations'))
+      setPagination((prev) => ({
+        ...prev,
+        page: Number(response?.page ?? targetPage),
+        page_size: Number(response?.page_size ?? prev.page_size),
+        total: Number(response?.total ?? normalizeList(response, 'designations').length ?? 0),
+        total_pages: Number(response?.total_pages ?? 0),
+      }))
     } catch (err) {
       setError(typeof err === 'string' ? err : 'Failed to fetch designations.')
       setDesignations([])
+      setPagination((prev) => ({
+        ...prev,
+        page: targetPage,
+        total: 0,
+        total_pages: 0,
+      }))
     } finally {
       setIsLoading(false)
     }
@@ -124,7 +146,11 @@ function DesignationPage() {
 
       try {
         const response = await dispatch(
-          fetchSchools({ access_token: accessToken }),
+          fetchSchools({
+            access_token: accessToken,
+            page: 1,
+            page_size: 100,
+          }),
         ).unwrap()
 
         setSchools(normalizeList(response, 'schools'))
@@ -136,13 +162,39 @@ function DesignationPage() {
     loadSchools()
   }, [dispatch, accessToken])
 
+  useEffect(() => {
+    const loadDepartmentOptions = async () => {
+      if (!accessToken) {
+        setDepartments([])
+        return
+      }
+
+      try {
+        const response = await dispatch(
+          fetchDepartments({
+            access_token: accessToken,
+            school_id: schoolId,
+            page: 1,
+            page_size: 100,
+          }),
+        ).unwrap()
+
+        setDepartments(normalizeList(response, 'departments'))
+      } catch {
+        setDepartments([])
+      }
+    }
+
+    loadDepartmentOptions()
+  }, [dispatch, accessToken, schoolId])
+
   const openCreatePopup = () => {
     setIsCreatePopupOpen(true)
     setFormData({
       school_id: schoolId ? String(schoolId) : '',
-      department_name: '',
+      department_id: '',
+      name: '',
       code: '',
-      designations: [''],
     })
     setFormErrors({})
   }
@@ -151,19 +203,19 @@ function DesignationPage() {
     setIsCreatePopupOpen(false)
     setFormData({
       school_id: schoolId ? String(schoolId) : '',
-      department_name: '',
+      department_id: '',
+      name: '',
       code: '',
-      designations: [''],
     })
     setFormErrors({})
   }
 
-  const handleDepartmentChange = (event) => {
+  const handleNameChange = (event) => {
     setFormData((prev) => ({
       ...prev,
-      department_name: event.target.value,
+      name: event.target.value,
     }))
-    setFormErrors((prev) => ({ ...prev, department_name: '', submit: '' }))
+    setFormErrors((prev) => ({ ...prev, name: '', submit: '' }))
   }
 
   const handleCodeChange = (event) => {
@@ -182,28 +234,12 @@ function DesignationPage() {
     setFormErrors((prev) => ({ ...prev, school_id: '', submit: '' }))
   }
 
-  const handleDesignationChange = (index, value) => {
+  const handleDepartmentChange = (event) => {
     setFormData((prev) => ({
       ...prev,
-      designations: prev.designations.map((item, itemIndex) => (itemIndex === index ? value : item)),
+      department_id: event.target.value,
     }))
-    setFormErrors((prev) => ({ ...prev, designations: '', submit: '' }))
-  }
-
-  const addDesignationField = () => {
-    setFormData((prev) => ({
-      ...prev,
-      designations: [...prev.designations, ''],
-    }))
-  }
-
-  const removeDesignationField = (index) => {
-    setFormData((prev) => ({
-      ...prev,
-      designations: prev.designations.length === 1
-        ? ['']
-        : prev.designations.filter((_, itemIndex) => itemIndex !== index),
-    }))
+    setFormErrors((prev) => ({ ...prev, department_id: '', submit: '' }))
   }
 
   const validateForm = (values) => {
@@ -212,19 +248,18 @@ function DesignationPage() {
       nextErrors.school_id = 'School id is required.'
     }
 
-    if (!values.department_name.trim()) {
-      nextErrors.department_name = 'Department name is required.'
+    if (!String(values.department_id ?? '').trim()) {
+      nextErrors.department_id = 'Department is required.'
     }
 
-    const validDesignations = values.designations.map((item) => item.trim()).filter(Boolean)
-    if (validDesignations.length === 0) {
-      nextErrors.designations = 'Add at least one designation.'
+    if (!String(values.name ?? '').trim()) {
+      nextErrors.name = 'Designation name is required.'
     }
 
     return nextErrors
   }
 
-  const handleCreateDepartment = async (event) => {
+  const handleCreateDesignation = async (event) => {
     event.preventDefault()
 
     const nextErrors = validateForm(formData)
@@ -248,27 +283,22 @@ function DesignationPage() {
     setMessage('')
 
     try {
-      await dispatch(
-        createDepartmentWithDesignations({
-          access_token: accessToken,
-          payload: {
-            school_id: Number(formData.school_id),
-            name: formData.department_name.trim(),
-            code: String(formData.code || '').trim(),
-            designations: formData.designations
-              .map((item) => item.trim())
-              .filter(Boolean)
-              .map((name) => ({ name })),
-          },
-        }),
-      ).unwrap()
+      await dispatch(createDesignation({
+        access_token: accessToken,
+        payload: {
+          school_id: Number(formData.school_id),
+          department_id: Number(formData.department_id),
+          name: String(formData.name || '').trim(),
+          code: String(formData.code || '').trim(),
+        },
+      })).unwrap()
 
       closeCreatePopup()
-      setMessage('Department and designations created successfully.')
-      await loadDesignations(formData.school_id)
+      setMessage('Designation created successfully.')
+      await loadDesignations(formData.school_id, 1)
     } catch (err) {
       setFormErrors({
-        submit: typeof err === 'string' ? err : 'Failed to create department.',
+        submit: typeof err === 'string' ? err : 'Failed to create designation.',
       })
     } finally {
       setIsSubmitting(false)
@@ -287,11 +317,11 @@ function DesignationPage() {
       header: 'Department',
       render: (item) => item?.department_name || item?.department?.name || '-',
     },
-    {
-      key: 'school_name',
-      header: 'School',
-      render: (item) => item?.school_name || item?.school?.name || '-',
-    },
+    // {
+    //   key: 'school_name',
+    //   header: 'School',
+    //   render: (item) => item?.school_name || item?.school?.name || '-',
+    // },
     {
       key: 'status',
       header: 'Status',
@@ -310,7 +340,7 @@ function DesignationPage() {
             <h2 className="role-management-title">Designation</h2>
             {permissions.canCreate && (
               <button type="button" className="role-management-open-create-btn" onClick={openCreatePopup}>
-                Create Department
+                Create Designation
               </button>
             )}
           </div>
@@ -329,16 +359,21 @@ function DesignationPage() {
             emptyMessage="No designations available."
           />
         )}
+        {!isLoading && !error && (
+          <p className="role-management-info">
+            Page {pagination.page} of {pagination.total_pages || 1} | Total: {pagination.total}
+          </p>
+        )}
       </div>
 
       <CustomPopup
         isOpen={isCreatePopupOpen}
-        title="Create Department"
+        title="Create Designation"
         titleId="designation-form-title"
         popupClassName="role-management-create-popup"
         onClose={closeCreatePopup}
       >
-        <form className="role-management-form" onSubmit={handleCreateDepartment}>
+        <form className="role-management-form" onSubmit={handleCreateDesignation}>
           <div className="role-management-field">
             <label htmlFor="designation-school-id" className="role-management-label">School Id</label>
             <select
@@ -350,7 +385,7 @@ function DesignationPage() {
               <option value="">Select school</option>
               {schools.map((school, index) => (
                 <option key={school?.id ?? index} value={school?.id ?? ''}>
-                  {school?.name || `School ${index + 1}`}
+                  {school?.name || school?.school_name || `School ${index + 1}`}
                 </option>
               ))}
             </select>
@@ -358,68 +393,47 @@ function DesignationPage() {
           </div>
 
           <div className="role-management-field">
-            <label htmlFor="designation-department-name" className="role-management-label">Department</label>
-            <input
-              id="designation-department-name"
-              type="text"
-              className="role-management-input"
-              value={formData.department_name}
+            <label htmlFor="designation-department-id" className="role-management-label">Department</label>
+            <select
+              id="designation-department-id"
+              className="role-management-select"
+              value={formData.department_id}
               onChange={handleDepartmentChange}
-              placeholder="Enter department name"
-            />
-            {formErrors.department_name && <p className="role-management-field-error">{formErrors.department_name}</p>}
+            >
+              <option value="">Select department</option>
+              {departments.map((department, index) => (
+                <option key={department?.id ?? index} value={department?.id ?? ''}>
+                  {department?.name || department?.department_name || `Department ${index + 1}`}
+                </option>
+              ))}
+            </select>
+            {formErrors.department_id && <p className="role-management-field-error">{formErrors.department_id}</p>}
           </div>
 
           <div className="role-management-field">
-            <label htmlFor="designation-department-code" className="role-management-label">Code</label>
+            <label htmlFor="designation-name" className="role-management-label">Designation Name</label>
             <input
-              id="designation-department-code"
+              id="designation-name"
+              type="text"
+              className="role-management-input"
+              value={formData.name}
+              onChange={handleNameChange}
+              placeholder="Enter designation name"
+            />
+            {formErrors.name && <p className="role-management-field-error">{formErrors.name}</p>}
+          </div>
+
+          <div className="role-management-field">
+            <label htmlFor="designation-code" className="role-management-label">Code</label>
+            <input
+              id="designation-code"
               type="text"
               className="role-management-input"
               value={formData.code}
               onChange={handleCodeChange}
-              placeholder="Enter department code"
+              placeholder="Enter designation code"
             />
             {formErrors.code && <p className="role-management-field-error">{formErrors.code}</p>}
-          </div>
-
-          <div className="role-management-field">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-              <label htmlFor="designation-name-0" className="role-management-label">Designations</label>
-              <button
-                type="button"
-                className="role-management-open-create-btn"
-                onClick={addDesignationField}
-                style={{ minWidth: 'auto', padding: '8px 12px' }}
-                aria-label="Add designation"
-              >
-                +
-              </button>
-            </div>
-
-            <div style={{ display: 'grid', gap: '12px' }}>
-              {formData.designations.map((designation, index) => (
-                <div key={`designation-${index}`} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <input
-                    id={`designation-name-${index}`}
-                    type="text"
-                    className="role-management-input"
-                    value={designation}
-                    onChange={(event) => handleDesignationChange(index, event.target.value)}
-                    placeholder={`Enter designation ${index + 1}`}
-                  />
-                  <button
-                    type="button"
-                    className="role-management-cancel-btn"
-                    onClick={() => removeDesignationField(index)}
-                    aria-label={`Remove designation ${index + 1}`}
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-            </div>
-            {formErrors.designations && <p className="role-management-field-error">{formErrors.designations}</p>}
           </div>
 
           <div className="custom-popup-actions">

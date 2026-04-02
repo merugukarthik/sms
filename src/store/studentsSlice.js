@@ -251,6 +251,31 @@ export const fetchPromoteStudent = createAsyncThunk(
   },
 )
 
+export const fetchStudentDues = createAsyncThunk(
+  'students/fetchStudentDues',
+  async ({ access_token, student_id }, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/students/${student_id}/dues`, {
+        method: 'GET',
+        headers: {
+          accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + access_token,
+        },
+      })
+
+      if (!response.ok) {
+        return rejectWithValue(await getErrorMessage(response, 'Student dues fetch failed'))
+      }
+
+      const data = await response.json().catch(() => ({}))
+      return data
+    } catch {
+      return rejectWithValue('Unable to fetch student dues. Please try again.')
+    }
+  },
+)
+
 const studentsSlice = createSlice({
   name: 'students',
   initialState,
@@ -300,6 +325,17 @@ const studentsSlice = createSlice({
       .addCase(fetchPromoteStudent.rejected, (state, action) => {
         state.status = 'failed'
         state.error = action.payload || action.error.message || 'Student promote request failed.'
+      })
+      .addCase(fetchStudentDues.pending, (state) => {
+        state.status = 'loading'
+        state.error = null
+      })
+      .addCase(fetchStudentDues.fulfilled, (state) => {
+        state.status = 'succeeded'
+      })
+      .addCase(fetchStudentDues.rejected, (state, action) => {
+        state.status = 'failed'
+        state.error = action.payload || action.error.message || 'Student dues request failed.'
       })
   },
 })

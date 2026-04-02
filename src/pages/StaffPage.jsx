@@ -5,14 +5,21 @@ import {
   fetchCreateStaffAttendance,
   fetchCreateStaff,
   fetchDeleteStaff,
-  fetchStaffDepartments,
-  fetchStaffDesignations,
+  fetchDepartments,
+  fetchDesignationList,
   fetchStaffList,
   fetchUpdateStaff,
 } from '../store/staffSlice'
+import { fetchSchools } from '../store/schoolsSlice'
 import CustomPopup from '../components/CustomPopup'
 import CustomTable from '../components/CustomTable'
 import { getCrudPermissions } from '../utils/permissions'
+
+const GENDER_OPTIONS = [
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
+  { value: 'other', label: 'Other' },
+]
 
 function StaffPage() {
   const sanitizePhoneValue = (value) => String(value ?? '').replace(/\D/g, '').slice(0, 10)
@@ -31,8 +38,10 @@ function StaffPage() {
   )
 
   const [staffData, setStaffData] = useState([])
+  const [schools, setSchools] = useState([])
   const [departments, setDepartments] = useState([])
   const [designations, setDesignations] = useState([])
+  const [editDesignations, setEditDesignations] = useState([])
   const [staffMeta, setStaffMeta] = useState({
     total: 0,
     page: 1,
@@ -54,6 +63,7 @@ function StaffPage() {
   const [formError, setFormError] = useState({})
   const [message, setMessage] = useState('')
   const [formData, setFormData] = useState({
+    school_id: Number(user?.user?.school_id ?? user?.school_id ?? 0),
     first_name: '',
     last_name: '',
     date_of_birth: '',
@@ -61,12 +71,16 @@ function StaffPage() {
     phone: '',
     email: '',
     address: '',
+    qualification: '',
+    experience_years: 0,
+    salary: 0,
     department_id: 0,
     designation_id: 0,
-    date_of_joining: '',
-    user_id: 0,
+    joining_date: '',
+    employee_id: '',
   })
   const [editFormData, setEditFormData] = useState({
+    school_id: Number(user?.user?.school_id ?? user?.school_id ?? 0),
     first_name: '',
     last_name: '',
     date_of_birth: '',
@@ -76,7 +90,7 @@ function StaffPage() {
     address: '',
     department_id: 0,
     designation_id: 0,
-    date_of_joining: '',
+    joining_date: '',
     user_id: 0,
   })
 
@@ -123,7 +137,12 @@ function StaffPage() {
     if (!user?.access_token) return
 
     try {
-      const resp = await dispatch(fetchStaffDepartments({ access_token: user.access_token })).unwrap()
+      const resp = await dispatch(fetchDepartments({
+        access_token: user.access_token,
+        school_id: user?.user?.school_id ?? user?.school_id ?? '',
+        page: 1,
+        page_size: 100,
+      })).unwrap()
       const normalized = Array.isArray(resp?.items)
         ? resp.items
         : Array.isArray(resp)
@@ -137,21 +156,15 @@ function StaffPage() {
     }
   }
 
-  const refreshDesignations = async (departmentId) => {
+  const refreshSchools = async () => {
     if (!user?.access_token) return
 
-    if (!departmentId) {
-      setDesignations([])
-      return
-    }
-
     try {
-      const resp = await dispatch(
-        fetchStaffDesignations({
-          access_token: user.access_token,
-          department_id: departmentId,
-        }),
-      ).unwrap()
+      const resp = await dispatch(fetchSchools({
+        access_token: user.access_token,
+        page: 1,
+        page_size: 100,
+      })).unwrap()
       const normalized = Array.isArray(resp?.items)
         ? resp.items
         : Array.isArray(resp)
@@ -159,13 +172,57 @@ function StaffPage() {
           : Array.isArray(resp?.data)
             ? resp.data
             : []
-      setDesignations(normalized)
+      setSchools(normalized)
     } catch {
-      setDesignations([])
+      setSchools([])
+    }
+  }
+
+  const refreshDesignations = async (departmentId, target = 'create') => {
+    if (!user?.access_token) return
+
+    if (!departmentId) {
+      if (target === 'edit') {
+        setEditDesignations([])
+      } else {
+        setDesignations([])
+      }
+      return
+    }
+
+    try {
+      const resp = await dispatch(
+        fetchDesignationList({
+          access_token: user.access_token,
+          school_id: user?.user?.school_id ?? user?.school_id ?? '',
+          page: 1,
+          page_size: 100,
+        }),
+      ).unwrap()
+      const normalized = (Array.isArray(resp?.items)
+        ? resp.items
+        : Array.isArray(resp)
+          ? resp
+          : Array.isArray(resp?.data)
+            ? resp.data
+            : [])
+        .filter((designation) => Number(designation?.department_id ?? designation?.department?.id ?? 0) === Number(departmentId))
+      if (target === 'edit') {
+        setEditDesignations(normalized)
+      } else {
+        setDesignations(normalized)
+      }
+    } catch {
+      if (target === 'edit') {
+        setEditDesignations([])
+      } else {
+        setDesignations([])
+      }
     }
   }
 
   useEffect(() => {
+    refreshSchools()
     refreshDepartments()
     refreshStaff()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -173,6 +230,7 @@ function StaffPage() {
 
   const validateForm = (values) => {
     const nextErrors = {}
+    if (!values.school_id && values.school_id !== 0) nextErrors.school_id = 'School is required.'
     if (!values.first_name.trim()) nextErrors.first_name = 'First name is required.'
     if (!values.last_name.trim()) nextErrors.last_name = 'Last name is required.'
     if (!values.date_of_birth) nextErrors.date_of_birth = 'Date of birth is required.'
@@ -181,10 +239,12 @@ function StaffPage() {
     if (!values.phone.trim()) nextErrors.phone = 'Phone is required.'
     if (values.phone && !/^\d{1,10}$/.test(values.phone)) nextErrors.phone = 'Phone number must be up to 10 digits.'
     if (!values.address.trim()) nextErrors.address = 'Address is required.'
+    if (!String(values.qualification || '').trim()) nextErrors.qualification = 'Qualification is required.'
+    if (Number(values.experience_years) < 0) nextErrors.experience_years = 'Experience years cannot be negative.'
+    if (Number(values.salary) < 0) nextErrors.salary = 'Salary cannot be negative.'
     if (!values.department_id && values.department_id !== 0) nextErrors.department_id = 'Department id is required.'
     if (!values.designation_id && values.designation_id !== 0) nextErrors.designation_id = 'Designation id is required.'
-    if (!values.date_of_joining) nextErrors.date_of_joining = 'Date of joining is required.'
-    if (!values.user_id && values.user_id !== 0) nextErrors.user_id = 'User id is required.'
+    if (!values.joining_date) nextErrors.joining_date = 'Joining date is required.'
     return nextErrors
   }
 
@@ -197,6 +257,7 @@ function StaffPage() {
   const closeCreatePopup = () => {
     setIsCreatePopupOpen(false)
     setFormData({
+      school_id: Number(user?.user?.school_id ?? user?.school_id ?? 0),
       first_name: '',
       last_name: '',
       date_of_birth: '',
@@ -204,9 +265,12 @@ function StaffPage() {
       phone: '',
       email: '',
       address: '',
+      qualification: '',
+      experience_years: 0,
+      salary: 0,
       department_id: 0,
       designation_id: 0,
-      date_of_joining: '',
+      joining_date: '',
       user_id: 0,
     })
     setDesignations([])
@@ -216,6 +280,7 @@ function StaffPage() {
   const closeEditPopup = () => {
     setEditingStaffId('')
     setEditFormData({
+      school_id: Number(user?.user?.school_id ?? user?.school_id ?? 0),
       first_name: '',
       last_name: '',
       date_of_birth: '',
@@ -225,9 +290,10 @@ function StaffPage() {
       address: '',
       department_id: 0,
       designation_id: 0,
-      date_of_joining: '',
+      joining_date: '',
       user_id: 0,
     })
+    setEditDesignations([])
     setFormError({})
   }
 
@@ -284,6 +350,7 @@ function StaffPage() {
       ).unwrap()
       setMessage('Staff created successfully.')
       setFormData({
+        school_id: Number(user?.user?.school_id ?? user?.school_id ?? 0),
         first_name: '',
         last_name: '',
         date_of_birth: '',
@@ -291,10 +358,13 @@ function StaffPage() {
         phone: '',
         email: '',
         address: '',
+        qualification: '',
+        experience_years: 0,
+        salary: 0,
         department_id: 0,
         designation_id: 0,
-        date_of_joining: '',
-        user_id: 0,
+        joining_date: '',
+        employee_id: 0,
       })
       setFormError({})
       setIsCreatePopupOpen(false)
@@ -310,7 +380,9 @@ function StaffPage() {
 
   const handleEditStaff = (staff) => {
     setEditingStaffId(String(staff?.id || ''))
+    const selectedDepartmentId = Number(staff?.department_id ?? 0)
     setEditFormData({
+      school_id: Number(staff?.school_id ?? user?.user?.school_id ?? user?.school_id ?? 0),
       first_name: staff?.first_name || '',
       last_name: staff?.last_name || '',
       date_of_birth: staff?.date_of_birth ? String(staff.date_of_birth).split('T')[0] : '',
@@ -318,11 +390,16 @@ function StaffPage() {
       phone: staff?.phone || '',
       email: staff?.email || '',
       address: staff?.address || '',
-      department_id: Number(staff?.department_id ?? 0),
+      department_id: selectedDepartmentId,
       designation_id: Number(staff?.designation_id ?? 0),
-      date_of_joining: staff?.date_of_joining ? String(staff.date_of_joining).split('T')[0] : '',
+      joining_date: staff?.joining_date
+        ? String(staff.joining_date).split('T')[0]
+        : staff?.date_of_joining
+          ? String(staff.date_of_joining).split('T')[0]
+          : '',
       user_id: Number(staff?.user_id ?? 0),
     })
+    refreshDesignations(selectedDepartmentId, 'edit')
     setFormError({})
     setMessage('')
   }
@@ -410,6 +487,7 @@ function StaffPage() {
       await dispatch(
         fetchCreateStaffAttendance({
           access_token: user.access_token,
+          school_id: Number(user?.user?.school_id ?? user?.school_id ?? 0),
           date: attendanceDate,
           records,
         }),
@@ -495,9 +573,15 @@ function StaffPage() {
       ),
     },
     {
-      key: 'date_of_joining',
-      header: 'Date Of Joining',
-      render: (staff) => (staff?.date_of_joining ? String(staff.date_of_joining).split('T')[0] : '-'),
+      key: 'joining_date',
+      header: 'Joining Date',
+      render: (staff) => (
+        staff?.joining_date
+          ? String(staff.joining_date).split('T')[0]
+          : staff?.date_of_joining
+            ? String(staff.date_of_joining).split('T')[0]
+            : '-'
+      ),
     },
   ]
 
@@ -617,6 +701,25 @@ function StaffPage() {
             <h3 id="create-staff-title" className="custom-popup-title">Create Staff</h3>
             <form className="role-management-form role-management-form-two-col" onSubmit={handleCreateStaff}>
               <div className="role-management-field">
+                <label htmlFor="staff-school_id" className="role-management-label">School</label>
+                <select
+                  id="staff-school_id"
+                  name="school_id"
+                  className="role-management-select"
+                  value={formData.school_id}
+                  onChange={handleInputChange}
+                >
+                  <option value={0}>-- Select school --</option>
+                  {schools.map((school, index) => (
+                    <option key={school?.id ?? index} value={Number(school?.id ?? 0)}>
+                      {school?.name || school?.school_name || `School ${index + 1}`}
+                    </option>
+                  ))}
+                </select>
+                {formError.school_id && <p className="role-management-field-error">{formError.school_id}</p>}
+              </div>
+
+              <div className="role-management-field">
                 <label htmlFor="staff-first_name" className="role-management-label">First Name</label>
                 <input
                   id="staff-first_name"
@@ -659,15 +762,18 @@ function StaffPage() {
 
               <div className="role-management-field">
                 <label htmlFor="staff-gender" className="role-management-label">Gender</label>
-                <input
+                <select
                   id="staff-gender"
                   name="gender"
-                  type="text"
-                  className="role-management-input"
+                  className="role-management-select"
                   value={formData.gender}
                   onChange={handleInputChange}
-                  placeholder="Enter gender"
-                />
+                >
+                  <option value="">Select gender</option>
+                  {GENDER_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
                 {formError.gender && <p className="role-management-field-error">{formError.gender}</p>}
               </div>
 
@@ -716,7 +822,49 @@ function StaffPage() {
               </div>
 
               <div className="role-management-field">
-                <label htmlFor="staff-department_id" className="role-management-label">Department Id</label>
+                <label htmlFor="staff-qualification" className="role-management-label">Qualification</label>
+                <input
+                  id="staff-qualification"
+                  name="qualification"
+                  type="text"
+                  className="role-management-input"
+                  value={formData.qualification}
+                  onChange={handleInputChange}
+                  placeholder="Enter qualification"
+                />
+                {formError.qualification && <p className="role-management-field-error">{formError.qualification}</p>}
+              </div>
+
+              <div className="role-management-field">
+                <label htmlFor="staff-experience_years" className="role-management-label">Experience Years</label>
+                <input
+                  id="staff-experience_years"
+                  name="experience_years"
+                  type="number"
+                  min="0"
+                  className="role-management-input"
+                  value={formData.experience_years}
+                  onChange={handleInputChange}
+                />
+                {formError.experience_years && <p className="role-management-field-error">{formError.experience_years}</p>}
+              </div>
+
+              <div className="role-management-field">
+                <label htmlFor="staff-salary" className="role-management-label">Salary</label>
+                <input
+                  id="staff-salary"
+                  name="salary"
+                  type="number"
+                  min="0"
+                  className="role-management-input"
+                  value={formData.salary}
+                  onChange={handleInputChange}
+                />
+                {formError.salary && <p className="role-management-field-error">{formError.salary}</p>}
+              </div>
+
+              <div className="role-management-field">
+                <label htmlFor="staff-department_id" className="role-management-label">Department</label>
                 <select
                   id="staff-department_id"
                   name="department_id"
@@ -744,7 +892,7 @@ function StaffPage() {
               </div>
 
               <div className="role-management-field">
-                <label htmlFor="staff-designation_id" className="role-management-label">Designation Id</label>
+                <label htmlFor="staff-designation_id" className="role-management-label">Designation</label>
                 <select
                   id="staff-designation_id"
                   name="designation_id"
@@ -772,29 +920,16 @@ function StaffPage() {
               </div>
 
               <div className="role-management-field">
-                <label htmlFor="staff-date_of_joining" className="role-management-label">Date Of Joining</label>
+                <label htmlFor="staff-joining_date" className="role-management-label">Joining Date</label>
                 <input
-                  id="staff-date_of_joining"
-                  name="date_of_joining"
+                  id="staff-joining_date"
+                  name="joining_date"
                   type="date"
                   className="role-management-input"
-                  value={formData.date_of_joining}
+                  value={formData.joining_date}
                   onChange={handleInputChange}
                 />
-                {formError.date_of_joining && <p className="role-management-field-error">{formError.date_of_joining}</p>}
-              </div>
-
-              <div className="role-management-field">
-                <label htmlFor="staff-user_id" className="role-management-label">User Id</label>
-                <input
-                  id="staff-user_id"
-                  name="user_id"
-                  type="number"
-                  className="role-management-input"
-                  value={formData.user_id}
-                  onChange={handleInputChange}
-                />
-                {formError.user_id && <p className="role-management-field-error">{formError.user_id}</p>}
+                {formError.joining_date && <p className="role-management-field-error">{formError.joining_date}</p>}
               </div>
 
               <div className="role-management-form-actions" style={{ gridColumn: '1 / -1' }}>
@@ -825,6 +960,25 @@ function StaffPage() {
           >
             <h3 id="edit-staff-title" className="custom-popup-title">Edit Staff</h3>
             <form className="role-management-form" onSubmit={handleUpdateStaff}>
+              <div className="role-management-field">
+                <label htmlFor="edit-staff-school_id" className="role-management-label">School</label>
+                <select
+                  id="edit-staff-school_id"
+                  name="school_id"
+                  className="role-management-select"
+                  value={editFormData.school_id}
+                  onChange={handleEditInputChange}
+                >
+                  <option value={0}>-- Select school --</option>
+                  {schools.map((school, index) => (
+                    <option key={school?.id ?? index} value={Number(school?.id ?? 0)}>
+                      {school?.name || school?.school_name || `School ${index + 1}`}
+                    </option>
+                  ))}
+                </select>
+                {formError.school_id && <p className="role-management-field-error">{formError.school_id}</p>}
+              </div>
+
               <div className="role-management-field">
                 <label htmlFor="edit-staff-first_name" className="role-management-label">First Name</label>
                 <input
@@ -868,15 +1022,18 @@ function StaffPage() {
 
               <div className="role-management-field">
                 <label htmlFor="edit-staff-gender" className="role-management-label">Gender</label>
-                <input
+                <select
                   id="edit-staff-gender"
                   name="gender"
-                  type="text"
-                  className="role-management-input"
+                  className="role-management-select"
                   value={editFormData.gender}
                   onChange={handleEditInputChange}
-                  placeholder="Enter gender"
-                />
+                >
+                  <option value="">Select gender</option>
+                  {GENDER_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
                 {formError.gender && <p className="role-management-field-error">{formError.gender}</p>}
               </div>
 
@@ -925,42 +1082,72 @@ function StaffPage() {
               </div>
 
               <div className="role-management-field">
-                <label htmlFor="edit-staff-department_id" className="role-management-label">Department Id</label>
-                <input
+                <label htmlFor="edit-staff-department_id" className="role-management-label">Department</label>
+                <select
                   id="edit-staff-department_id"
                   name="department_id"
-                  type="number"
-                  className="role-management-input"
+                  className="role-management-select"
                   value={editFormData.department_id}
-                  onChange={handleEditInputChange}
-                />
+                  onChange={async (event) => {
+                    const selectedDepartmentId = Number(event.target.value)
+                    setEditFormData((prev) => ({
+                      ...prev,
+                      department_id: selectedDepartmentId,
+                      designation_id: 0,
+                    }))
+                    setFormError((prev) => ({ ...prev, department_id: '', designation_id: '', editSubmit: '' }))
+                    await refreshDesignations(selectedDepartmentId, 'edit')
+                  }}
+                >
+                  <option value={0}>-- Select department --</option>
+                  {departments.map((department, index) => (
+                    <option key={department?.id ?? index} value={Number(department?.id ?? 0)}>
+                      {department?.name || department?.display_name || `Department ${index + 1}`}
+                    </option>
+                  ))}
+                </select>
                 {formError.department_id && <p className="role-management-field-error">{formError.department_id}</p>}
               </div>
 
               <div className="role-management-field">
-                <label htmlFor="edit-staff-designation_id" className="role-management-label">Designation Id</label>
-                <input
+                <label htmlFor="edit-staff-designation_id" className="role-management-label">Designation</label>
+                <select
                   id="edit-staff-designation_id"
                   name="designation_id"
-                  type="number"
-                  className="role-management-input"
+                  className="role-management-select"
                   value={editFormData.designation_id}
-                  onChange={handleEditInputChange}
-                />
+                  onChange={(event) => {
+                    setEditFormData((prev) => ({
+                      ...prev,
+                      designation_id: Number(event.target.value),
+                    }))
+                    setFormError((prev) => ({ ...prev, designation_id: '', editSubmit: '' }))
+                  }}
+                  disabled={!editFormData.department_id || editDesignations.length === 0}
+                >
+                  <option value={0}>
+                    {editFormData.department_id ? '-- Select designation --' : '-- Select department first --'}
+                  </option>
+                  {editDesignations.map((designation, index) => (
+                    <option key={designation?.id ?? index} value={Number(designation?.id ?? 0)}>
+                      {designation?.name || designation?.display_name || `Designation ${index + 1}`}
+                    </option>
+                  ))}
+                </select>
                 {formError.designation_id && <p className="role-management-field-error">{formError.designation_id}</p>}
               </div>
 
               <div className="role-management-field">
-                <label htmlFor="edit-staff-date_of_joining" className="role-management-label">Date Of Joining</label>
+                <label htmlFor="edit-staff-joining_date" className="role-management-label">Joining Date</label>
                 <input
-                  id="edit-staff-date_of_joining"
-                  name="date_of_joining"
+                  id="edit-staff-joining_date"
+                  name="joining_date"
                   type="date"
                   className="role-management-input"
-                  value={editFormData.date_of_joining}
+                  value={editFormData.joining_date}
                   onChange={handleEditInputChange}
                 />
-                {formError.date_of_joining && <p className="role-management-field-error">{formError.date_of_joining}</p>}
+                {formError.joining_date && <p className="role-management-field-error">{formError.joining_date}</p>}
               </div>
 
               <div className="role-management-field">

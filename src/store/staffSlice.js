@@ -13,6 +13,9 @@ const getErrorMessage = async (response, fallbackText = 'Request failed') => {
     if (typeof data?.message === 'string' && data.message.trim()) {
       return data.message
     }
+    if (typeof data?.detail === 'string' && data.detail.trim()) {
+      return data.detail
+    }
   } catch {
     // Fall back to response status when body is not JSON.
   }
@@ -48,6 +51,7 @@ export const fetchStaffList = createAsyncThunk(
 export const fetchCreateStaff = createAsyncThunk(
   'staff/fetchCreateStaff',
   async ({
+    school_id,
     first_name,
     last_name,
     date_of_birth,
@@ -55,10 +59,13 @@ export const fetchCreateStaff = createAsyncThunk(
     phone,
     email,
     address,
+    qualification,
+    experience_years,
+    salary,
     department_id,
     designation_id,
-    date_of_joining,
-    user_id,
+    joining_date,
+    employee_id,
     access_token,
   }, { rejectWithValue }) => {
     try {
@@ -70,6 +77,7 @@ export const fetchCreateStaff = createAsyncThunk(
           Authorization: 'Bearer ' + access_token,
         },
         body: JSON.stringify({
+          school_id,
           first_name,
           last_name,
           date_of_birth,
@@ -77,10 +85,13 @@ export const fetchCreateStaff = createAsyncThunk(
           phone,
           email,
           address,
+          qualification,
+          experience_years,
+          salary,
           department_id,
           designation_id,
-          date_of_joining,
-          user_id,
+          joining_date,
+          employee_id,
         }),
       })
 
@@ -100,6 +111,7 @@ export const fetchUpdateStaff = createAsyncThunk(
   'staff/fetchUpdateStaff',
   async ({
     id,
+    school_id,
     first_name,
     last_name,
     date_of_birth,
@@ -109,7 +121,7 @@ export const fetchUpdateStaff = createAsyncThunk(
     address,
     department_id,
     designation_id,
-    date_of_joining,
+    joining_date,
     user_id,
     access_token,
   }, { rejectWithValue }) => {
@@ -122,6 +134,7 @@ export const fetchUpdateStaff = createAsyncThunk(
           Authorization: 'Bearer ' + access_token,
         },
         body: JSON.stringify({
+          school_id,
           first_name,
           last_name,
           date_of_birth,
@@ -131,7 +144,7 @@ export const fetchUpdateStaff = createAsyncThunk(
           address,
           department_id,
           designation_id,
-          date_of_joining,
+          joining_date,
           user_id,
         }),
       })
@@ -261,6 +274,38 @@ export const fetchStaffDesignations = createAsyncThunk(
   },
 )
 
+export const fetchDesignationList = createAsyncThunk(
+  'staff/fetchDesignationList',
+  async ({ access_token, school_id, page = 1, page_size = 10 }, { rejectWithValue }) => {
+    try {
+      const query = new URLSearchParams()
+      if (school_id !== undefined && school_id !== null && String(school_id).trim()) {
+        query.set('school_id', String(school_id))
+      }
+      query.set('page', String(page))
+      query.set('page_size', String(page_size))
+
+      const response = await fetch(`${API_BASE_URL}/designations?${query.toString()}`, {
+        method: 'GET',
+        headers: {
+          accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + access_token,
+        },
+      })
+
+      if (!response.ok) {
+        return rejectWithValue(await getErrorMessage(response, 'Designation fetch failed'))
+      }
+
+      const data = await response.json().catch(() => ({}))
+      return data
+    } catch {
+      return rejectWithValue('Unable to fetch designations. Please try again.')
+    }
+  },
+)
+
 export const fetchDesignationsBySchool = createAsyncThunk(
   'staff/fetchDesignationsBySchool',
   async ({ access_token, school_id }, { rejectWithValue }) => {
@@ -271,7 +316,7 @@ export const fetchDesignationsBySchool = createAsyncThunk(
       }
 
       const response = await fetch(
-        `${API_BASE_URL}/designations${query.toString() ? `?${query.toString()}` : ''}`,
+        `${API_BASE_URL}/departments${query.toString() ? `?${query.toString()}` : ''}`,
         {
           method: 'GET',
           headers: {
@@ -290,6 +335,38 @@ export const fetchDesignationsBySchool = createAsyncThunk(
       return data
     } catch {
       return rejectWithValue('Unable to fetch designations. Please try again.')
+    }
+  },
+)
+
+export const fetchDepartments = createAsyncThunk(
+  'staff/fetchDepartments',
+  async ({ access_token, school_id, page = 1, page_size = 10 }, { rejectWithValue }) => {
+    try {
+      const query = new URLSearchParams()
+      if (school_id !== undefined && school_id !== null && String(school_id).trim()) {
+        query.set('school_id', String(school_id))
+      }
+      query.set('page', String(page))
+      query.set('page_size', String(page_size))
+
+      const response = await fetch(`${API_BASE_URL}/departments?${query.toString()}`, {
+        method: 'GET',
+        headers: {
+          accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + access_token,
+        },
+      })
+
+      if (!response.ok) {
+        return rejectWithValue(await getErrorMessage(response, 'Department fetch failed'))
+      }
+
+      const data = await response.json().catch(() => ({}))
+      return data
+    } catch {
+      return rejectWithValue('Unable to fetch departments. Please try again.')
     }
   },
 )
@@ -320,21 +397,65 @@ export const createDepartmentWithDesignations = createAsyncThunk(
   },
 )
 
-export const fetchCreateStaffAttendance = createAsyncThunk(
-  'staff/fetchCreateStaffAttendance',
-  async ({ access_token, date, records }, { rejectWithValue }) => {
+export const createDesignation = createAsyncThunk(
+  'staff/createDesignation',
+  async ({ access_token, payload }, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/attendance/staff`, {
+      const response = await fetch(`${API_BASE_URL}/designations`, {
         method: 'POST',
         headers: {
           accept: 'application/json',
           'Content-Type': 'application/json',
           Authorization: 'Bearer ' + access_token,
         },
-        body: JSON.stringify({
-          date,
-          records,
-        }),
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        return rejectWithValue(await getErrorMessage(response, 'Designation creation failed'))
+      }
+
+      const data = await response.json().catch(() => ({}))
+      return data
+    } catch {
+      return rejectWithValue('Unable to create designation. Please try again.')
+    }
+  },
+)
+
+export const fetchCreateStaffAttendance = createAsyncThunk(
+  'staff/fetchCreateStaffAttendance',
+  async ({ access_token, school_id, date, records }, { rejectWithValue }) => {
+    try {
+      const isBulk = Array.isArray(records) && records.length > 1
+      const endpoint = isBulk
+        ? `${API_BASE_URL}/attendance/staff/bulk`
+        : `${API_BASE_URL}/attendance/staff`
+      const singleRecord = Array.isArray(records) ? records[0] : null
+      const payload = isBulk
+        ? {
+            school_id,
+            date,
+            records,
+          }
+        : {
+            school_id,
+            staff_id: Number(singleRecord?.staff_id ?? 0),
+            date,
+            status: singleRecord?.status || 'present',
+            check_in_time: String(singleRecord?.check_in_time ?? ''),
+            check_out_time: String(singleRecord?.check_out_time ?? ''),
+            remarks: String(singleRecord?.remarks ?? ''),
+          }
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + access_token,
+        },
+        body: JSON.stringify(payload),
       })
 
       if (!response.ok) {
@@ -399,6 +520,17 @@ const staffSlice = createSlice({
         state.status = 'failed'
         state.error = action.payload || action.error.message || 'Staff designations request failed.'
       })
+      .addCase(fetchDesignationList.pending, (state) => {
+        state.status = 'loading'
+        state.error = null
+      })
+      .addCase(fetchDesignationList.fulfilled, (state) => {
+        state.status = 'succeeded'
+      })
+      .addCase(fetchDesignationList.rejected, (state, action) => {
+        state.status = 'failed'
+        state.error = action.payload || action.error.message || 'Designation request failed.'
+      })
       .addCase(fetchDesignationsBySchool.pending, (state) => {
         state.status = 'loading'
         state.error = null
@@ -410,6 +542,17 @@ const staffSlice = createSlice({
         state.status = 'failed'
         state.error = action.payload || action.error.message || 'Designation request failed.'
       })
+      .addCase(fetchDepartments.pending, (state) => {
+        state.status = 'loading'
+        state.error = null
+      })
+      .addCase(fetchDepartments.fulfilled, (state) => {
+        state.status = 'succeeded'
+      })
+      .addCase(fetchDepartments.rejected, (state, action) => {
+        state.status = 'failed'
+        state.error = action.payload || action.error.message || 'Department request failed.'
+      })
       .addCase(createDepartmentWithDesignations.pending, (state) => {
         state.status = 'loading'
         state.error = null
@@ -420,6 +563,17 @@ const staffSlice = createSlice({
       .addCase(createDepartmentWithDesignations.rejected, (state, action) => {
         state.status = 'failed'
         state.error = action.payload || action.error.message || 'Department creation request failed.'
+      })
+      .addCase(createDesignation.pending, (state) => {
+        state.status = 'loading'
+        state.error = null
+      })
+      .addCase(createDesignation.fulfilled, (state) => {
+        state.status = 'succeeded'
+      })
+      .addCase(createDesignation.rejected, (state, action) => {
+        state.status = 'failed'
+        state.error = action.payload || action.error.message || 'Designation creation request failed.'
       })
       .addCase(fetchCreateStaffAttendance.pending, (state) => {
         state.status = 'loading'
