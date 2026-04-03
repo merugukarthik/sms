@@ -1,4 +1,5 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
+import { getApiErrorMessage } from '../utils/api'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://172.16.24.126:8000/api'
 const baseUrl = `${API_BASE_URL}/auth/`
@@ -83,15 +84,15 @@ export const loginUser = createAsyncThunk(
       const data = await response.json().catch(() => ({}))
       console.log('error data res:- ', data)
       return data
-    } catch {
-      return rejectWithValue('Unable to reach server. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to reach server. Please try again.'))
     }
   },
 )
 
 export const profileData = createAsyncThunk(
   'auth/profileData',
-  async ({ access_token }) => {
+  async ({ access_token }, { rejectWithValue }) => {
     console.log('profile page', access_token)
     try {
       const response = await fetch(baseUrl + 'me', {
@@ -110,8 +111,8 @@ export const profileData = createAsyncThunk(
       const data = await response.json().catch(() => ({}))
       console.log('profile resp"- ', data)
       return data
-    } catch {
-      return rejectWithValue('Unable to reach server. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to reach server. Please try again.'))
     }
   },
 )
@@ -141,8 +142,8 @@ export const verifyOtp = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to verify OTP. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to verify OTP. Please try again.'))
     }
   },
 )

@@ -1,4 +1,5 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
+import { getApiErrorMessage } from '../utils/api'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://172.16.24.126:8000/api/v1'
 
@@ -39,8 +40,8 @@ export const fetchUsersList = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to fetch users list. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to fetch users list. Please try again.'))
     }
   },
 )
@@ -77,8 +78,8 @@ export const fetchUpdateUserStatus = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return { id, is_active: Boolean(is_active), data }
-    } catch {
-      return rejectWithValue('Unable to update user status. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to update user status. Please try again.'))
     }
   },
 )
@@ -103,8 +104,8 @@ export const fetchCreateUser = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to create user. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to create user. Please try again.'))
     }
   },
 )

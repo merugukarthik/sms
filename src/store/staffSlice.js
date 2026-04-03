@@ -1,4 +1,5 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
+import { getApiErrorMessage } from '../utils/api'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://172.16.24.126:8000/api/v1'
 
@@ -42,8 +43,8 @@ export const fetchStaffList = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to fetch staff list. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to fetch staff list. Please try again.'))
     }
   },
 )
@@ -101,8 +102,8 @@ export const fetchCreateStaff = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to create staff. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to create staff. Please try again.'))
     }
   },
 )
@@ -155,8 +156,8 @@ export const fetchUpdateStaff = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to update staff. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to update staff. Please try again.'))
     }
   },
 )
@@ -178,8 +179,8 @@ export const fetchDeleteStaff = createAsyncThunk(
       }
 
       return { id }
-    } catch {
-      return rejectWithValue('Unable to delete staff. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to delete staff. Please try again.'))
     }
   },
 )
@@ -210,8 +211,8 @@ export const fetchStaffAttendance = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to fetch staff attendance. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to fetch staff attendance. Please try again.'))
     }
   },
 )
@@ -235,8 +236,8 @@ export const fetchStaffDepartments = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to fetch staff departments. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to fetch staff departments. Please try again.'))
     }
   },
 )
@@ -268,8 +269,8 @@ export const fetchStaffDesignations = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to fetch staff designations. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to fetch staff designations. Please try again.'))
     }
   },
 )
@@ -300,8 +301,8 @@ export const fetchDesignationList = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to fetch designations. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to fetch designations. Please try again.'))
     }
   },
 )
@@ -333,8 +334,8 @@ export const fetchDesignationsBySchool = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to fetch designations. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to fetch designations. Please try again.'))
     }
   },
 )
@@ -365,8 +366,8 @@ export const fetchDepartments = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to fetch departments. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to fetch departments. Please try again.'))
     }
   },
 )
@@ -391,8 +392,8 @@ export const createDepartmentWithDesignations = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to create department. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to create department. Please try again.'))
     }
   },
 )
@@ -417,8 +418,8 @@ export const createDesignation = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to create designation. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to create designation. Please try again.'))
     }
   },
 )
@@ -464,8 +465,8 @@ export const fetchCreateStaffAttendance = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to create staff attendance. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to create staff attendance. Please try again.'))
     }
   },
 )

@@ -1,4 +1,5 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
+import { getApiErrorMessage } from '../utils/api'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://172.16.24.126:8000/api/v1'
 
@@ -39,8 +40,8 @@ export const rolesManagement = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to get the roles. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to get the roles. Please try again.'))
     }
   },
 )
@@ -65,8 +66,8 @@ export const fetchCreateRole = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to create role. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to create role. Please try again.'))
     }
   },
 )
@@ -91,8 +92,8 @@ export const fetchUpdateRole = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to update role. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to update role. Please try again.'))
     }
   },
 )
@@ -114,8 +115,8 @@ export const fetchDeleteRole = createAsyncThunk(
       }
 
       return { id }
-    } catch {
-      return rejectWithValue('Unable to delete role. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to delete role. Please try again.'))
     }
   },
 )

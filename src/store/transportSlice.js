@@ -1,4 +1,5 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
+import { getApiErrorMessage } from '../utils/api'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://172.16.24.126:8000/api'
 
@@ -39,8 +40,8 @@ export const fetchTransportRoutes = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to fetch transport routes. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to fetch transport routes. Please try again.'))
     }
   },
 )
@@ -88,8 +89,8 @@ export const fetchCreateTransportRoute = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to create transport route. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to create transport route. Please try again.'))
     }
   },
 )
@@ -132,8 +133,8 @@ export const fetchUpdateTransportRoute = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to update transport route. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to update transport route. Please try again.'))
     }
   },
 )
@@ -155,8 +156,8 @@ export const fetchDeleteTransportRoute = createAsyncThunk(
       }
 
       return { id }
-    } catch {
-      return rejectWithValue('Unable to delete transport route. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to delete transport route. Please try again.'))
     }
   },
 )
@@ -180,8 +181,8 @@ export const fetchTransportVehicles = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to fetch transport vehicles. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to fetch transport vehicles. Please try again.'))
     }
   },
 )
@@ -205,8 +206,8 @@ export const fetchTransportStudentAssignments = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to fetch transport assignments. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to fetch transport assignments. Please try again.'))
     }
   },
 )
@@ -231,8 +232,8 @@ export const fetchCreateTransportStudentAssignment = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to create transport assignment. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to create transport assignment. Please try again.'))
     }
   },
 )
@@ -262,8 +263,8 @@ export const fetchCreateTransportVehicle = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to create transport vehicle. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to create transport vehicle. Please try again.'))
     }
   },
 )
@@ -294,8 +295,8 @@ export const fetchUpdateTransportVehicle = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to update transport vehicle. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to update transport vehicle. Please try again.'))
     }
   },
 )
@@ -317,8 +318,8 @@ export const fetchDeleteTransportVehicle = createAsyncThunk(
       }
 
       return { id }
-    } catch {
-      return rejectWithValue('Unable to delete transport vehicle. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to delete transport vehicle. Please try again.'))
     }
   },
 )
@@ -342,8 +343,8 @@ export const fetchTransportAttendance = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to fetch transport attendance. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to fetch transport attendance. Please try again.'))
     }
   },
 )
@@ -375,8 +376,8 @@ export const fetchCreateTransportAttendance = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to create transport attendance. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to create transport attendance. Please try again.'))
     }
   },
 )
@@ -408,8 +409,8 @@ export const fetchUpdateTransportAttendance = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to update transport attendance. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to update transport attendance. Please try again.'))
     }
   },
 )
@@ -431,8 +432,8 @@ export const fetchDeleteTransportAttendance = createAsyncThunk(
       }
 
       return { id }
-    } catch {
-      return rejectWithValue('Unable to delete transport attendance. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to delete transport attendance. Please try again.'))
     }
   },
 )

@@ -1,4 +1,5 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
+import { getApiErrorMessage } from '../utils/api'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://172.16.24.126:8000/api/v1'
 const SCHOOLS_URL = `${API_BASE_URL}/schools`
@@ -55,8 +56,8 @@ export const fetchSchools = createAsyncThunk(
       }
 
       return await response.json().catch(() => ({}))
-    } catch {
-      return rejectWithValue('Unable to fetch schools. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to fetch schools. Please try again.'))
     }
   },
 )
@@ -76,8 +77,8 @@ export const createSchool = createAsyncThunk(
       }
 
       return await response.json().catch(() => ({}))
-    } catch {
-      return rejectWithValue('Unable to create school. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to create school. Please try again.'))
     }
   },
 )
@@ -97,8 +98,8 @@ export const updateSchool = createAsyncThunk(
       }
 
       return await response.json().catch(() => ({}))
-    } catch {
-      return rejectWithValue('Unable to update school. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to update school. Please try again.'))
     }
   },
 )
@@ -117,8 +118,8 @@ export const deleteSchool = createAsyncThunk(
       }
 
       return await response.json().catch(() => ({}))
-    } catch {
-      return rejectWithValue('Unable to delete school. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to delete school. Please try again.'))
     }
   },
 )

@@ -1,4 +1,5 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
+import { getApiErrorMessage } from '../utils/api'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://172.16.24.126:8000/api/v1'
 
@@ -75,8 +76,8 @@ export const fetchStudentsList = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to fetch students list. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to fetch students list. Please try again.'))
     }
   },
 )
@@ -143,8 +144,8 @@ export const fetchCreateStudent = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to create student. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to create student. Please try again.'))
     }
   },
 )
@@ -184,8 +185,8 @@ export const fetchStudentAttendance = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to fetch student attendance. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to fetch student attendance. Please try again.'))
     }
   },
 )
@@ -216,8 +217,8 @@ export const fetchCreateStudentAttendance = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to create student attendance. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to create student attendance. Please try again.'))
     }
   },
 )
@@ -245,8 +246,8 @@ export const fetchPromoteStudent = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to promote student. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to promote student. Please try again.'))
     }
   },
 )
@@ -270,8 +271,8 @@ export const fetchStudentDues = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to fetch student dues. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to fetch student dues. Please try again.'))
     }
   },
 )

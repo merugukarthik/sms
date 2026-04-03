@@ -1,4 +1,5 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
+import { getApiErrorMessage } from '../utils/api'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://172.16.24.126:8000/api/v1'
 
@@ -50,8 +51,8 @@ export const fetchFeeStructure = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to fetch fee structure. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to fetch fee structure. Please try again.'))
     }
   },
 )
@@ -75,8 +76,8 @@ export const fetchFeeTypes = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to fetch fee types. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to fetch fee types. Please try again.'))
     }
   },
 )
@@ -120,8 +121,8 @@ export const fetchCreateFeeStructure = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to create fee structure. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to create fee structure. Please try again.'))
     }
   },
 )
@@ -151,8 +152,8 @@ export const fetchCreateFeeType = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to create fee type. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to create fee type. Please try again.'))
     }
   },
 )
@@ -181,8 +182,8 @@ export const fetchUpdateFeeType = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to update fee type. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to update fee type. Please try again.'))
     }
   },
 )
@@ -204,8 +205,8 @@ export const fetchDeleteFeeType = createAsyncThunk(
       }
 
       return { fee_type_id }
-    } catch {
-      return rejectWithValue('Unable to delete fee type. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to delete fee type. Please try again.'))
     }
   },
 )
@@ -257,8 +258,8 @@ export const fetchCreateFinanceAssignment = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to create finance assignment. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to create finance assignment. Please try again.'))
     }
   },
 )
@@ -288,8 +289,8 @@ export const createRazorpayOrder = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to create Razorpay order. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to create Razorpay order. Please try again.'))
     }
   },
 )
@@ -314,8 +315,8 @@ export const verifyRazorpayPayment = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to verify Razorpay payment. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to verify Razorpay payment. Please try again.'))
     }
   },
 )

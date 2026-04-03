@@ -183,6 +183,10 @@ function StudentPage() {
   const [feeDueError, setFeeDueError] = useState('')
   const [isFeeDueLoading, setIsFeeDueLoading] = useState(false)
   const [message, setMessage] = useState('')
+  const [studentFilters, setStudentFilters] = useState({
+    class_id: '',
+    section_id: '',
+  })
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -246,6 +250,52 @@ function StudentPage() {
 
     return normalizedSections
   }, [formData.class_id, sectionsData])
+  const studentFilterSectionOptions = useMemo(() => {
+    const selectedClassId = Number(studentFilters.class_id)
+    const normalizedSections = sectionsData.map((item, index) => ({
+      value: String(item?.id ?? item?.section_id ?? ''),
+      label: item?.name || item?.section_name || `Section ${index + 1}`,
+      classId: getSectionClassId(item),
+    })).filter((option) => option.value)
+
+    if (selectedClassId > 0) {
+      return normalizedSections.filter((option) => option.classId === selectedClassId)
+    }
+
+    return normalizedSections
+  }, [sectionsData, studentFilters.class_id])
+  const filteredStudentsData = useMemo(() => {
+    const selectedClassId = Number(studentFilters.class_id)
+    const selectedSectionId = Number(studentFilters.section_id)
+
+    return studentsData.filter((student) => {
+      const matchesClass = selectedClassId > 0
+        ? Number(student?.class_id) === selectedClassId
+        : true
+      const matchesSection = selectedSectionId > 0
+        ? Number(student?.section_id) === selectedSectionId
+        : true
+
+      return matchesClass && matchesSection
+    })
+  }, [studentFilters.class_id, studentFilters.section_id, studentsData])
+
+  const handleStudentFilterChange = (event) => {
+    const { name, value } = event.target
+
+    setStudentFilters((prev) => ({
+      ...prev,
+      ...(name === 'class_id' ? { section_id: '' } : {}),
+      [name]: value,
+    }))
+  }
+
+  const clearStudentFilters = () => {
+    setStudentFilters({
+      class_id: '',
+      section_id: '',
+    })
+  }
 
   const refreshStudents = async () => {
     if (!user?.access_token) return
@@ -888,16 +938,63 @@ function StudentPage() {
           </div>
         </div>
 
+        <div className="role-management-form role-management-form-two-col" style={{ marginBottom: '16px', alignItems: 'end' }}>
+          <div className="role-management-field">
+            <label htmlFor="student-filter-class_id" className="role-management-label">Filter By Class</label>
+            <select
+              id="student-filter-class_id"
+              name="class_id"
+              className="role-management-select"
+              value={studentFilters.class_id}
+              onChange={handleStudentFilterChange}
+            >
+              <option value="">All classes</option>
+              {classOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="role-management-field">
+            <label htmlFor="student-filter-section_id" className="role-management-label">Filter By Section</label>
+            <select
+              id="student-filter-section_id"
+              name="section_id"
+              className="role-management-select"
+              value={studentFilters.section_id}
+              onChange={handleStudentFilterChange}
+            >
+              <option value="">All sections</option>
+              {studentFilterSectionOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="role-management-form-actions" style={{ gridColumn: '1 / -1', paddingTop: 0 }}>
+            <button
+              type="button"
+              className="role-management-cancel-btn"
+              onClick={clearStudentFilters}
+              disabled={!studentFilters.class_id && !studentFilters.section_id}
+            >
+              Clear Filters
+            </button>
+          </div>
+        </div>
+
         {isLoading && <p className="role-management-info">Loading students...</p>}
         {error && <p className="role-management-error">{error}</p>}
-        {!isLoading && !error && studentsData.length === 0 && (
-          <p className="role-management-info">No students available.</p>
+        {!isLoading && !error && filteredStudentsData.length === 0 && (
+          <p className="role-management-info">
+            {studentsData.length === 0 ? 'No students available.' : 'No students found for the selected filters.'}
+          </p>
         )}
 
-        {!isLoading && !error && studentsData.length > 0 && (
+        {!isLoading && !error && filteredStudentsData.length > 0 && (
           <CustomTable
             columns={studentColumns}
-            data={studentsData}
+            data={filteredStudentsData}
             rowKey={(student, index) => student?.id ?? index}
             wrapperClassName="role-management-table-wrap"
             tableClassName="role-management-table"
@@ -907,7 +1004,7 @@ function StudentPage() {
 
         {!isLoading && !error && (
           <p className="role-management-info">
-            Page {studentsMeta.page} of {studentsMeta.total_pages} | Total: {studentsMeta.total}
+            Page {studentsMeta.page} of {studentsMeta.total_pages} | Showing: {filteredStudentsData.length} | Total: {studentsMeta.total}
           </p>
         )}
         {message && <p className="role-management-success">{message}</p>}

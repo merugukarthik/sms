@@ -1,4 +1,5 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
+import { getApiErrorMessage } from '../utils/api'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://172.16.24.126:8000/api/v1'
 const ORGANIZATIONS_URL = `${API_BASE_URL}/organizations`
@@ -44,8 +45,8 @@ export const fetchOrganizations = createAsyncThunk(
       }
 
       return await response.json().catch(() => ({}))
-    } catch {
-      return rejectWithValue('Unable to fetch organizations. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to fetch organizations. Please try again.'))
     }
   },
 )
@@ -65,8 +66,8 @@ export const createOrganization = createAsyncThunk(
       }
 
       return await response.json().catch(() => ({}))
-    } catch {
-      return rejectWithValue('Unable to create organization. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to create organization. Please try again.'))
     }
   },
 )
@@ -86,8 +87,8 @@ export const updateOrganization = createAsyncThunk(
       }
 
       return await response.json().catch(() => ({}))
-    } catch {
-      return rejectWithValue('Unable to update organization. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to update organization. Please try again.'))
     }
   },
 )
@@ -106,8 +107,8 @@ export const deleteOrganization = createAsyncThunk(
       }
 
       return { id }
-    } catch {
-      return rejectWithValue('Unable to delete organization. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to delete organization. Please try again.'))
     }
   },
 )

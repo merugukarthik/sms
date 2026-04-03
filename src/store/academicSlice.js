@@ -1,4 +1,5 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
+import { getApiErrorMessage } from '../utils/api'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://172.16.24.126:8000/api/v1'
 
@@ -86,8 +87,8 @@ export const fetchAcademicYears = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to fetch academic years. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to fetch academic years. Please try again.'))
     }
   },
 )
@@ -112,8 +113,8 @@ export const fetchCreateAcademicYear = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to create academic year. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to create academic year. Please try again.'))
     }
   },
 )
@@ -138,8 +139,8 @@ export const fetchUpdateAcademicYear = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to update academic year. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to update academic year. Please try again.'))
     }
   },
 )
@@ -161,8 +162,8 @@ export const fetchDeleteAcademicYear = createAsyncThunk(
       }
 
       return { id }
-    } catch {
-      return rejectWithValue('Unable to delete academic year. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to delete academic year. Please try again.'))
     }
   },
 )
@@ -186,8 +187,8 @@ export const fetchClasses = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to fetch classes. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to fetch classes. Please try again.'))
     }
   },
 )
@@ -242,8 +243,8 @@ export const fetchCreateClass = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to create class. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to create class. Please try again.'))
     }
   },
 )
@@ -268,8 +269,8 @@ export const fetchUpdateClass = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to update class. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to update class. Please try again.'))
     }
   },
 )
@@ -291,8 +292,8 @@ export const fetchDeleteClass = createAsyncThunk(
       }
 
       return { id }
-    } catch {
-      return rejectWithValue('Unable to delete class. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to delete class. Please try again.'))
     }
   },
 )
@@ -316,8 +317,8 @@ export const fetchSections = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to fetch sections. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to fetch sections. Please try again.'))
     }
   },
 )
@@ -346,8 +347,8 @@ export const fetchSubjects = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to fetch subjects. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to fetch subjects. Please try again.'))
     }
   },
 )
@@ -379,8 +380,8 @@ export const fetchCreateSubject = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to create subject. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to create subject. Please try again.'))
     }
   },
 )
@@ -412,8 +413,8 @@ export const fetchUpdateSubject = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to update subject. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to update subject. Please try again.'))
     }
   },
 )
@@ -435,8 +436,8 @@ export const fetchDeleteSubject = createAsyncThunk(
       }
 
       return { subject_id }
-    } catch {
-      return rejectWithValue('Unable to delete subject. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to delete subject. Please try again.'))
     }
   },
 )
@@ -461,8 +462,8 @@ export const fetchCreateSection = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to create section. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to create section. Please try again.'))
     }
   },
 )
@@ -487,8 +488,8 @@ export const fetchUpdateSection = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to update section. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to update section. Please try again.'))
     }
   },
 )
@@ -510,8 +511,8 @@ export const fetchDeleteSection = createAsyncThunk(
       }
 
       return { id }
-    } catch {
-      return rejectWithValue('Unable to delete section. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to delete section. Please try again.'))
     }
   },
 )
@@ -540,8 +541,8 @@ export const fetchExams = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to fetch exams. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to fetch exams. Please try again.'))
     }
   },
 )
@@ -574,8 +575,8 @@ export const fetchCreateExam = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to create exam. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to create exam. Please try again.'))
     }
   },
 )
@@ -608,8 +609,8 @@ export const fetchUpdateExam = createAsyncThunk(
 
       const data = await response.json().catch(() => ({}))
       return data
-    } catch {
-      return rejectWithValue('Unable to update exam. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to update exam. Please try again.'))
     }
   },
 )
@@ -631,8 +632,8 @@ export const fetchDeleteExam = createAsyncThunk(
       }
 
       return { exam_id }
-    } catch {
-      return rejectWithValue('Unable to delete exam. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to delete exam. Please try again.'))
     }
   },
 )

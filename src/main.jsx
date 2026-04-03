@@ -5,6 +5,9 @@ import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.jsx'
 import { store } from './store/store'
+import { installFetchTimeout } from './utils/api'
+
+installFetchTimeout()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
